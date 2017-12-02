@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+    <title>mp3音频解析</title>
+</head>
+<body>
+	<input value=0 type="range" id="myRange" >
+
+	<p id="per"></p>
+
+	<script type="text/javascript">
+	var arrayBuffer = null;
+	var audioContext = null;
+	var audioBufferSouceNode = null;
+	loadSound("test.mp3"); //调用
+	// 定义加载音频文件的函数
+	function loadSound(url) {
+	    var request = new XMLHttpRequest(); //建立一个请求
+	    request.open('GET', url, true); //配置好请求类型，文件路径等
+	    request.responseType = 'arraybuffer'; //配置数据返回类型
+	    // 一旦获取完成，对音频进行进一步操作，比如解码
+	    request.onload = function() {
+	        arrayBuffer = request.response;
+	        console.log('ID3length:'+getID3Length(arrayBuffer));
+	        console.log('bitRate:'+getBitRate(arrayBuffer));
+	        console.log('samplingRate:'+getSamplingRate(arrayBuffer));
+	    	console.log('Info:',getInfo(arrayBuffer));
+
+	        audioContext = new AudioContext; //从Visualizer得到最开始实例化的AudioContext用来做解码ArrayBuffer
+	        audioContext.onstatechange = function() {
+			  console.log(audioContext.state);
+			}
+	        seek();
+	    }
+	    request.send();
+	}
+
+	function getID3Length(arrayBuffer){
+		var uint8Array = new Uint8Array(arrayBuffer);
+		var headerLength =  (((uint8Array[6]&0x7F)<<21) | ((uint8Array[7]&0x7F)<<14) | ((uint8Array[8]&0x7F)<<7) | (uint8Array[9]&0x7F))+10;
+		return headerLength;
+	}
+	//获取比特率
+	function getBitRate(arrayBuffer){
+		//比特率对应表(bit/s)
+		var brMap = {
+			'1':32000,
+			'10':40000,
+			'11':48000,
+			'100':56000,
+			'101':64000,
+			'110':80000,
+			'111':96000,
+			'1000':112000,
+			'1001':128000,
+			'1010':160000,
+			'1011':192000,
+			'1100':224000,
+			'1101':256000,
+			'1110':320000
+		}
+
+		var begin = getID3Length(arrayBuffer);
+		//去掉标签信息
+		var dataBuffer = arrayBuffer.slice(begin,begin+3);
+
+		var uint8Array = new Uint8Array(dataBuffer);
+		var brCode = (uint8Array[2]&0xF0).toString(2).substring(0,4);
+		return brMap[brCode];
+	}
+	//获取采样率
+	function getSamplingRate(arrayBuffer){
+		//比特率对应表(Hz)
+		var srMap = {
+			'0':44100,
+			'1':48000,
+			'10':32000,
+		}
+
+		var begin = getID3Length(arrayBuffer);
+		//去掉标签信息
+		var dataBuffer = arrayBuffer.slice(begin,begin+3);
+
+		var uint8Array = new Uint8Array(dataBuffer);
+		var srCode = (uint8Array[2]&0x0C).toString(2).substring(0,2);
+		return srMap[srCode];
+	}
+	//获取第一帧填充数
+	function getPadding(arrayBuffer){
+		var begin = getID3Length(arrayBuffer);
+		//去掉标签信息
+		var dataBuffer = arrayBuffer.slice(begin,begin+3);
+		var uint8Array = new Uint8Array(dataBuffer);
+		var pdCode = (uint8Array[2]&0x02).toString(2);
+
+		if(pdCode=='1'){
+			return 1;
+		}else{
+			return 0;
+		}
+	}
+	//获取帧大小(bit)
+	function getFrameSize(arrayBuffer){
+		var samplingRate = getSamplingRate(arrayBuffer);
+		var bitRate = getBitRate(arrayBuffer);
+		var padding = getPadding(arrayBuffer); 
+
+		return 1152*bitRate/samplingRate+padding*8;
+	}
+	//获取VBR(OR CBR)信息
+	function getInfo(arrayBuffer){
+		var bufferStr = '';
+		var uint8Array = null;
+		var vbrDataBuffer = null;
+		var samplingRate = getSamplingRate(arrayBuffer);
+
+		//去掉标签信息
+		dataBuffer = arrayBuffer.slice(getID3Length(arrayBuffer));
+		uint8Array = new Uint8Array(dataBuffer);
+
+		//转换成16进制码
+		for(var i=0; i<100; i++){
+			if(uint8Array[i]<=15){
+				bufferStr += '0'+uint8Array[i].toString(16);
+			}else{
+				bufferStr += uint8Array[i].toString(16);
+			}
+			
+		}
+		bufferStr = bufferStr.toUpperCase();
+
+		if(bufferStr.indexOf('496E666F')!=-1){//存在Info头
+			vbrDataBuffer = dataBuffer.slice(bufferStr.indexOf('496E666F')/2);
+			return getInfo(vbrDataBuffer);
+		}else if(bufferStr.indexOf('58696E67')!=-1){//存在Xing头
+			vbrDataBuffer = dataBuffer.slice(bufferStr.indexOf('58696E67')/2);
+			return getInfo(vbrDataBuffer);
+		}else {//纯CBR编码
+			var frameSize = getFrameSize(arrayBuffer);
+			return {
+				frameSize: frameSize
+			};
+		}
+
+		//获取总帧数
+		function getTotalFrame(vbrDataBuffer){
+			vbrDataBuffer = vbrDataBuffer.slice(0,12);
+			var vbrUint8Array = new Uint8Array(vbrDataBuffer);
+			if(vbrUint8Array[7] & 1){
+				return (vbrUint8Array[8]<<24)+(vbrUint8Array[9]<<16)+(vbrUint8Array[10]<<8)+(vbrUint8Array[11]);
+			}else 
+				return false;
+		}
+
+		//获取数据帧总大小(bit)
+		function getTotalSize(vbrDataBuffer){
+			vbrDataBuffer = vbrDataBuffer.slice(0,16);
+			var vbrUint8Array = new Uint8Array(vbrDataBuffer);
+			if(vbrUint8Array[7] & 2){
+				if(vbrUint8Array[7] & 1 == 0){
+					return (vbrUint8Array[8]<<24)+(vbrUint8Array[9]<<16)+(vbrUint8Array[10]<<8)+(vbrUint8Array[11]);
+				}else{
+					return (vbrUint8Array[12]<<24)+(vbrUint8Array[13]<<16)+(vbrUint8Array[14]<<8)+(vbrUint8Array[15]);
+				}
+			}else 
+				return false;
+		}
+
+		//获取帧索引数组(100个)
+		function getToc(vbrDataBuffer){
+			var vbrUint8Array = new Uint8Array(vbrDataBuffer);
+			if(vbrUint8Array[7] & 4){
+				if(!(vbrUint8Array[7] & 1) && !(vbrUint8Array[7] & 2)){
+					return _getToc(vbrDataBuffer.slice(8));
+				}else if((vbrUint8Array[7] & 1) && !(vbrUint8Array[7] & 2) || !(vbrUint8Array[7] & 1) && (vbrUint8Array[7] & 2)){
+					return _getToc(vbrDataBuffer.slice(12));
+				}else{
+					return _getToc(vbrDataBuffer.slice(16));
+				}
+			}
+
+			function _getToc(docArrayBuffer){
+				var indexArr = [];
+				var docuUnit8Array = new Uint8Array(docArrayBuffer.slice(0,100));
+				for(var i=0; i<100; i++){
+					indexArr[i] = docuUnit8Array[i];
+				}
+				return indexArr;
+			}
+		}
+
+		function getInfo(vbrDataBuffer){
+			var totalFrame = getTotalFrame(vbrDataBuffer);
+			var totalTime = 1152*totalFrame/samplingRate;
+			var totalSize = getTotalSize(vbrDataBuffer)+getID3Length(arrayBuffer);
+			var toc = getToc(vbrDataBuffer);
+			var info = {
+				totalFrame: totalFrame,
+				totalSize: totalSize,
+				totalTime: totalTime,
+				toc: toc
+			};
+			return info;
+		}
+	}
+
+	//根据TOC跳转到指定帧
+	function seek(){
+		var info = getInfo(arrayBuffer);
+		var index = 0;
+		var begin = 0;
+		var percent = document.getElementById("myRange").value;
+		var seconds = 0;
+		document.getElementById("per").innerHTML = percent;
+		if(info.toc){
+			index = info.toc[percent];
+			begin = index/256*info.totalSize;
+		}
+
+		if(audioBufferSouceNode!=null){
+			audioBufferSouceNode.stop();
+		}
+		
+		audioContext.decodeAudioData(arrayBuffer.slice(begin), function(buffer) { //解码成功则调用此函数，参数buffer为解码后得到的结果
+	    	audioBufferSouceNode = audioContext.createBufferSource();
+	    	audioBufferSouceNode.connect(audioContext.destination);
+		    audioBufferSouceNode.buffer = buffer;
+		    audioBufferSouceNode.start(0);
+		    
+	    }, function(e) { //这个是解码失败会调用的函数
+	        console.log(seconds+'s',"!哎玛，文件解码失败:(");
+	    });
+	}
+
+	document.getElementById("myRange").onchange = function(){
+		var percent = document.getElementById("myRange").value;
+		document.getElementById("per").innerHTML = percent;
+		seek();
+	}
+</script>
+</body>
+</html>
