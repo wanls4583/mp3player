@@ -46,7 +46,7 @@ function sendFile(realPath,req,res){
             var raw = fs.createReadStream(realPath, { 'start': rangeData.start, 'end': rangeData.end });
             //状态码当然是206了
             res.writeHead(206, 'Partial Content', {
-                'Content-Type': mime.lookup(path.basename(realPath)),
+                'Content-Type': mime.getType(path.basename(realPath)),
                 'Content-Range': 'bytes ' + rangeData.start + '-' + rangeData.end + '/' + size,
                 'Content-Length': rangeData.chunkSize
             });
@@ -59,7 +59,7 @@ function sendFile(realPath,req,res){
     } else {
         var file = fs.readFileSync(realPath);
         res.writeHead(200, {
-            'Content-Type': mime.lookup(path.basename(realPath)),
+            'Content-Type': mime.getType(path.basename(realPath)),
         });
         res.end(file);
         console.log('send static file:'+realPath);
