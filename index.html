@@ -14,7 +14,6 @@
 	var mp3Info = null;
 	var fileSize = 0;
 	var audioContext = null;
-	var preAudioBufferSouceNode = null;//记录前一段资源节点
 	var fileBlocksFlag = new Array(100); //音频数据分区(对应分块是否已经下载)
 	var fileBlocks = new Array(100); //音频数据分区
 	var headerLength = 0;
@@ -24,11 +23,21 @@
 	var playIntervalId = null;//播放计时器
 	var decodedObj = null;//记录解码过的分区索引和大小
 	var playedTime = 0;//记录播放的时间
-	var hasPlayed = false;
-
+	var hasPlayed = false;//是否已经开始播放
+	var audioBufferSouceNodeQueue = [];//音频资源队列
+	var playedAudioBufferSouceNodeQueue = [];//已经播放过的音频资源队列
+	var deledAudioBufferSouceNodeQueue = [];//已经删除的音频资源队列
 	promise = new Promise(loadHeaderInfo);
 	promise.then(loadFirstFrame).then(getInfo).then(start);
 
+	Array.prototype.indexOf = function(item){
+		for(var i=0; i<this.length; i++){
+			if(this[i]==item){
+				return i;
+			}
+		}
+		return -1;
+	}
 	//ajax获取音频头部标签头(32B)
 	function loadHeaderInfo(resolve,reject){
 		var request = new XMLHttpRequest();
@@ -244,11 +253,15 @@
 		decodeAudioData(0,cacheFrameSize);
 	}
 	//解码
-	function decodeAudioData(index,cacheFrameSize){
+	function decodeAudioData(index,size){
 		if(index >= indexSize){
 			return;
 		}
-		loadFrame(index,cacheFrameSize).then(function(arrayBuffer){
+		decodedObj = {
+	    	index: index,
+	    	size: size
+	    }
+		loadFrame(index,size).then(function(arrayBuffer){
 			if(!audioContext){
 				audioContext = new AudioContext();
 				audioContext.onstatechange = function() {
@@ -256,45 +269,57 @@
 				}
 			}
 			audioContext.decodeAudioData(arrayBuffer, function(buffer) { //解码成功则调用此函数，参数buffer为解码后得到的结果
-				playedTime = 0;
-		    	audioBufferSouceNode = audioContext.createBufferSource();
+		    	var audioBufferSouceNode = audioContext.createBufferSource();
 		    	audioBufferSouceNode.connect(audioContext.destination);
 			    audioBufferSouceNode.buffer = buffer;
+			    audioBufferSouceNodeQueue.push(audioBufferSouceNode);
 			    if(!hasPlayed){
 			    	hasPlayed = true;
 			    	audioBufferSouceNode.start(0);
+			    	playedAudioBufferSouceNodeQueue.push(audioBufferSouceNode);
+			    	startPlayInterval(buffer);
 			    }
-			    clearInterval(playIntervalId);
-		    	playIntervalId = setInterval(function(){
-			    	if(audioContext.state!='running')
-			    		return;
-			    	playedTime+=100;
-			    	//腾出2000ms的时间用于新分区的解码
-			    	if(playedTime+2000 >= buffer.duration*1000){
-			    		if(decodedObj.index+cacheFrameSize<indexSize){
-				    		decodeAudioData(decodedObj.index+cacheFrameSize,cacheFrameSize);
+			    function startPlayInterval(buffer){
+			    	clearInterval(playIntervalId);
+			    	playIntervalId = setInterval(function(){
+				    	if(audioContext.state!='running')
+				    		return;
+				    	playedTime+=50;
+				    	//该分区播放完前100ms，开始播放
+				    	if(playedTime+50 >= buffer.duration*1000){
+				    		playedTime = 0;
+				    		for(var i=0; i<audioBufferSouceNodeQueue.length; i++){
+				    			if(playedAudioBufferSouceNodeQueue.indexOf(audioBufferSouceNodeQueue[i])==-1){
+				    				audioBufferSouceNodeQueue[i].start(0);
+				    				startPlayInterval(audioBufferSouceNodeQueue[i].buffer);
+				    				playedAudioBufferSouceNodeQueue.push(audioBufferSouceNodeQueue[i]);
+				    				break;
+				    			}
+				    		}
 				    	}
-			    	}
-			    },100);
-			    
-				audioBufferSouceNode.onended = function() {
-					if(preAudioBufferSouceNode){
-				    	preAudioBufferSouceNode.disconnect();
-				    }
-				    if(decodedObj.index+cacheFrameSize>=indexSize){
-				    	setTimeout(function(){
-				    		audioContext.suspend();
-				    	},audioBufferSouceNode.buffer.duration*1000);
-			    		return;
-			    	}
-					audioBufferSouceNode.start(0);
-					preAudioBufferSouceNode = audioBufferSouceNode;
-				}
-				
-			    decodedObj = {
-			    	index: index,
-			    	size: cacheFrameSize
+				    },50);
 			    }
+			    
+				audioBufferSouceNode.onended =  (function(audioBufferSouceNode){
+					return function(){
+						audioBufferSouceNode.disconnect();
+						deledAudioBufferSouceNodeQueue.push(audioBufferSouceNode);
+						
+						if(deledAudioBufferSouceNodeQueue.length == audioBufferSouceNodeQueue.length){
+							audioContext.close();
+							//释放资源
+							audioBufferSouceNodeQueue = [];
+							playedAudioBufferSouceNodeQueue = [];
+							deledAudioBufferSouceNodeQueue = [];
+						}
+					}
+			    })(audioBufferSouceNode);
+
+			    //递归加载数据
+			    if(decodedObj.index+cacheFrameSize<indexSize){
+		    		decodeAudioData(decodedObj.index+cacheFrameSize,cacheFrameSize);
+		    	}
+				
 		    }, function(e) { //这个是解码失败会调用的函数
 		        console.log(index,"!哎玛，文件解码失败:(");
 		    });
@@ -369,6 +394,31 @@
 		    request.setRequestHeader("Range","bytes="+begin+'-'+(end-1));
 		    request.send();
 		});
+
+	}
+	//合并index索引之前所有连续的已经缓存过的分区
+	function joinCachedFileBlock(index){
+		var length = 0;
+		var arr = null;
+		var result = null;
+		var beginIndex = index;
+		for(var i=index; i>=0 && fileBlocks[i]; i--){
+			length += fileBlocks[i].byteLength;
+			beginIndex = i;
+		}
+		result = new ArrayBuffer(length);
+		arr = new Uint8Array(result);
+		length = 0;
+		for(i=beginIndex; i<=index; i++){
+			arr.set(new Uint8Array(fileBlocks[i]),length);
+			length += fileBlocks[i].byteLength;
+		}
+
+		return {
+			arrayBuffer: result,
+			index: beginIndex,
+			size: index-beginIndex+1
+		}
 
 	}
 	//启动自动加载与切换分区监听器
