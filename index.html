@@ -333,12 +333,12 @@
 
 		if(mp3Info.toc!=null){
 			begin = (mp3Info.toc[index]/256*fileSize)>>0;
-			end = (mp3Info.toc[index+size]/256*fileSize-1)>>0;
-			end = end>=fileSize ? fileSize-1 : end;
+			end = (mp3Info.toc[index+size]/256*fileSize)>>0;
+			end = end>=fileSize ? fileSize : end;
 		}else{
 			begin = (mp3Info.frameSize*index+headerLength)>>0;
-			end = (begin+mp3Info.frameSize*size-1)>>0;
-			end = end>=fileSize ? fileSize-1 : end;
+			end = (begin+mp3Info.frameSize*size)>>0;
+			end = end>=fileSize ? fileSize : end;
 		}
 
 		return new Promise(function(resolve,reject){
