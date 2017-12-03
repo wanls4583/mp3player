@@ -245,7 +245,9 @@
 	}
 	//解码
 	function decodeAudioData(index,cacheFrameSize){
-		if()
+		if(index >= indexSize){
+			return;
+		}
 		loadFrame(index,cacheFrameSize).then(function(arrayBuffer){
 			if(!audioContext){
 				audioContext = new AudioContext();
