@@ -14,14 +14,17 @@
 	var mp3Info = null;
 	var fileSize = 0;
 	var audioContext = null;
-	var audioBufferSouceNode = null;
+	var preAudioBufferSouceNode = null;//记录前一段资源节点
 	var fileBlocksFlag = new Array(100); //音频数据分区(对应分块是否已经下载)
 	var fileBlocks = new Array(100); //音频数据分区
 	var headerLength = 0;
 	var cacheFrameSize = 10;//每次加载的帧数
 	var indexSize = 100;//索引个数
 	var loadIntervalId = null;//加载帧计时器
+	var playIntervalId = null;//播放计时器
 	var decodedObj = null;//记录解码过的分区索引和大小
+	var playedTime = 0;//记录播放的时间
+	var hasPlayed = false;
 
 	promise = new Promise(loadHeaderInfo);
 	promise.then(loadFirstFrame).then(getInfo).then(start);
@@ -242,6 +245,7 @@
 	}
 	//解码
 	function decodeAudioData(index,cacheFrameSize){
+		if()
 		loadFrame(index,cacheFrameSize).then(function(arrayBuffer){
 			if(!audioContext){
 				audioContext = new AudioContext();
@@ -250,20 +254,41 @@
 				}
 			}
 			audioContext.decodeAudioData(arrayBuffer, function(buffer) { //解码成功则调用此函数，参数buffer为解码后得到的结果
-				if(audioBufferSouceNode){
-					audioBufferSouceNode.disconnect();
-				}
+				playedTime = 0;
 		    	audioBufferSouceNode = audioContext.createBufferSource();
 		    	audioBufferSouceNode.connect(audioContext.destination);
 			    audioBufferSouceNode.buffer = buffer;
-			    audioBufferSouceNode.start(0);
-			    audioBufferSouceNode.onended = function() {
-			    	if(decodedObj.index+cacheFrameSize<indexSize){
-			    		decodeAudioData(decodedObj.index+cacheFrameSize,cacheFrameSize);
-			    	}else{
-			    		audioContext.suspend();
+			    if(!hasPlayed){
+			    	hasPlayed = true;
+			    	audioBufferSouceNode.start(0);
+			    }
+			    clearInterval(playIntervalId);
+		    	playIntervalId = setInterval(function(){
+			    	if(audioContext.state!='running')
+			    		return;
+			    	playedTime+=100;
+			    	//腾出2000ms的时间用于新分区的解码
+			    	if(playedTime+2000 >= buffer.duration*1000){
+			    		if(decodedObj.index+cacheFrameSize<indexSize){
+				    		decodeAudioData(decodedObj.index+cacheFrameSize,cacheFrameSize);
+				    	}
 			    	}
+			    },100);
+			    
+				audioBufferSouceNode.onended = function() {
+					if(preAudioBufferSouceNode){
+				    	preAudioBufferSouceNode.disconnect();
+				    }
+				    if(decodedObj.index+cacheFrameSize>=indexSize){
+				    	setTimeout(function(){
+				    		audioContext.suspend();
+				    	},audioBufferSouceNode.buffer.duration*1000);
+			    		return;
+			    	}
+					audioBufferSouceNode.start(0);
+					preAudioBufferSouceNode = audioBufferSouceNode;
 				}
+				
 			    decodedObj = {
 			    	index: index,
 			    	size: cacheFrameSize
