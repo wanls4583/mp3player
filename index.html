@@ -24,6 +24,8 @@
 	var souceNodeQueue = [];//音频资源队列
 	var stopDecode = false;//是否有数据正在解码中
 	var nowSouceNode = null;//正在播放的资源节点
+	var loading = false;//加载中
+	var decoding = false;//解码中
 
 	promise = new Promise(loadHeaderInfo);
 	promise.then(loadFirstFrame).then(getInfo).then(start);
@@ -258,8 +260,10 @@
 		stopDecode = true;
 		if(audioContext && audioContext.state=='running' && (!nowSouceNode || nowSouceNode && nowSouceNode.finished)){
 			//加载中
+			loading = true;
 		}
 		loadFrame(index,minSize,negative).then(function(result){
+			loading = false;
 			if(!audioContext){
 				audioContext = new AudioContext();
 				audioContext.onstatechange = function() {
@@ -270,6 +274,7 @@
 			}
 			if(!nowSouceNode || nowSouceNode && nowSouceNode.finished){
 				//解码中
+				decoding = true;
 			}
 			audioContext.decodeAudioData(result.arrayBuffer, function(buffer) { //解码成功则调用此函数，参数buffer为解码后得到的结果
 		    	var audioBufferSouceNode = audioContext.createBufferSource();
@@ -278,6 +283,7 @@
 			    audioBufferSouceNode.beginIndex = result.beginIndex;
 			    audioBufferSouceNode.endIndex = result.endIndex;
 			    souceNodeQueue.push(audioBufferSouceNode);
+			    decoding = false;
 			    stopDecode = false;
 			    if(!hasPlayed){
 			    	hasPlayed = true;
@@ -299,7 +305,7 @@
 				    	if(audioContext.state!='running')
 				    		return;
 				    	//该分区播放完前100ms，开始播放
-				    	if((audioContext.currentTime-beginTime)*1000+500 >= buffer.duration*100){
+				    	if((audioContext.currentTime-beginTime)*1000+500 >= buffer.duration*1000){
 				    		if(souceNodeQueue.length>0){
 				    			var souceNode = souceNodeQueue.shift();
 					    		var startTime = buffer.duration-(audioContext.currentTime-beginTime);
@@ -428,6 +434,12 @@
 
 	//跳转某个索引
 	function seek(index){
+		if(loading||decoding){
+			setTimeout(function(){
+				seek(index);
+			},500);
+			return;
+		}
 		clearInterval(playIntervalId);
 		hasPlayed = false;
 		if(nowSouceNode){
