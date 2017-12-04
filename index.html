@@ -248,10 +248,10 @@
 	//开始播放 
 	function start(_mp3Info){
 		mp3Info = _mp3Info;
-		decodeAudioData(0,cacheFrameSize);
+		decodeAudioData(0,cacheFrameSize,true);
 	}
 	//解码
-	function decodeAudioData(index,minSize){
+	function decodeAudioData(index,minSize,negative){
 		if(index >= indexSize){
 			return;
 		}
@@ -259,7 +259,7 @@
 		if(audioContext && audioContext.state=='running' && (!nowSouceNode || nowSouceNode && nowSouceNode.finished)){
 			//加载中
 		}
-		loadFrame(index,minSize).then(function(result){
+		loadFrame(index,minSize,negative).then(function(result){
 			if(!audioContext){
 				audioContext = new AudioContext();
 				audioContext.onstatechange = function() {
@@ -278,20 +278,17 @@
 			    audioBufferSouceNode.beginIndex = result.beginIndex;
 			    audioBufferSouceNode.endIndex = result.endIndex;
 			    souceNodeQueue.push(audioBufferSouceNode);
-			    console.log('push:'+souceNodeQueue.length);
 			    stopDecode = false;
 			    if(!hasPlayed){
 			    	hasPlayed = true;
 			    	audioBufferSouceNode.start(0);
 			    	souceNodeQueue.shift();
-			    	console.log('shift1:'+souceNodeQueue.length);
 			    	nowSouceNode = audioBufferSouceNode;
 			    	startPlayInterval(buffer);
 			    }
 			    //解码接下来要播放的音频数据
 		    	if(!stopDecode && audioBufferSouceNode.endIndex+1<indexSize){
 		    		setTimeout(function(){
-		    			console.log(audioBufferSouceNode.endIndex+1);
 		    			decodeAudioData(audioBufferSouceNode.endIndex+1,minSize);
 		    		},100);
 		    	}
@@ -302,10 +299,9 @@
 				    	if(audioContext.state!='running')
 				    		return;
 				    	//该分区播放完前100ms，开始播放
-				    	if((audioContext.currentTime-beginTime)+1 >= buffer.duration){
+				    	if((audioContext.currentTime-beginTime)*1000+500 >= buffer.duration*100){
 				    		if(souceNodeQueue.length>0){
 				    			var souceNode = souceNodeQueue.shift();
-				    			console.log('shift2:'+souceNodeQueue.length);
 					    		var startTime = buffer.duration-(audioContext.currentTime-beginTime);
 					    		startTime = startTime>0?startTime:0;
 					    		souceNode.start(startTime);
@@ -335,7 +331,7 @@
 		});
 	}
 	//获取数据帧
-	function loadFrame(index,minSize){
+	function loadFrame(index,minSize,negative){
 		var begin = 0;
 		var end = 0;
 		var cached = true;
@@ -350,7 +346,7 @@
 			var arr = null;
 			var result = null;
 			var length = 0;
-			result = joinNextCachedFileBlock(index);
+			result = joinNextCachedFileBlock(index,minSize,negative);
 			return new Promise(function(resolve){
 				resolve(result);
 			})
@@ -387,7 +383,7 @@
 		        		begin = end;
 		        	}
 		        }
-		        resolve(joinNextCachedFileBlock(index));
+		        resolve(joinNextCachedFileBlock(index,minSize,negative));
 		        loadFrame(index+minSize,minSize);
 		    }
 		    request.setRequestHeader("Range","bytes="+begin+'-'+(end-1));
@@ -396,13 +392,19 @@
 
 	}
 	//合并index索引之后所有连续的已经缓存过的分区
-	function joinNextCachedFileBlock(index){
+	function joinNextCachedFileBlock(index,minSize,negative){
 		var length = 0;
 		var arr = null;
 		var result = null;
 		var endIndex = index;
+		var indexLength = fileBlocks.length;
 
-		for(var i=index; i<fileBlocks.length && fileBlocks[i]; i++){
+		//消极情况下只返回minSize个数据块
+		if(negative){
+			indexLength = index+minSize;
+		}
+
+		for(var i=index; i<indexLength && fileBlocks[i]; i++){
 			length += fileBlocks[i].byteLength;
 			endIndex = i;
 		}
@@ -433,7 +435,7 @@
 			nowSouceNode = null;
 		}
 		souceNodeQueue = [];
-		decodeAudioData(index,cacheFrameSize);
+		decodeAudioData(index,cacheFrameSize,true);
 	}
 
 	document.getElementById("myRange").onchange = function(){
