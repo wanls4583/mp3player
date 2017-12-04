@@ -396,20 +396,28 @@
 		});
 
 	}
-	//合并index索引之前所有连续的已经缓存过的分区
-	function joinCachedFileBlock(index){
+	//合并index索引附近所有连续的已经缓存过的分区
+	function joinNearCachedFileBlock(index){
 		var length = 0;
 		var arr = null;
 		var result = null;
 		var beginIndex = index;
+		var endIndex = index;
+
 		for(var i=index; i>=0 && fileBlocks[i]; i--){
 			length += fileBlocks[i].byteLength;
 			beginIndex = i;
 		}
+		for(var i=index; i<fileBlocks.length && fileBlocks[i]; i++){
+			length += fileBlocks[i].byteLength;
+			endIndex = i;
+		}
+
 		result = new ArrayBuffer(length);
 		arr = new Uint8Array(result);
 		length = 0;
-		for(i=beginIndex; i<=index; i++){
+
+		for(i=beginIndex; i<=endIndex; i++){
 			arr.set(new Uint8Array(fileBlocks[i]),length);
 			length += fileBlocks[i].byteLength;
 		}
