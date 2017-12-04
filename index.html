@@ -22,8 +22,8 @@
 	var playIntervalId = null;//播放计时器
 	var playedTime = 0;//记录播放的时间
 	var hasPlayed = false;//是否已经开始播放
-	var audioBufferSouceNodeQueue = [];//音频资源队列
-	var playedAudioBufferSouceNodeQueue = [];//已经播放过的音频资源队列
+	var souceNodeQueue = [];//音频资源队列
+	var playedSouceNodeQueue = [];//已经播放过的音频资源队列
 	var deledAudioBufferSouceNodeQueue = [];//已经删除的音频资源队列
 	var stopDecode = false;//是否有数据正在解码中
 	var decodedBlocksFlag = new Array(100);//记录解码的索引范围
@@ -270,56 +270,47 @@
 		    	var audioBufferSouceNode = audioContext.createBufferSource();
 		    	audioBufferSouceNode.connect(audioContext.destination);
 			    audioBufferSouceNode.buffer = buffer;
-			    audioBufferSouceNode.beginIndex = result.beginIndex;
 			    audioBufferSouceNode.endIndex = result.endIndex;
-			    audioBufferSouceNode.nowIndex = index;
-			    audioBufferSouceNodeQueue.push(audioBufferSouceNode);
+			    souceNodeQueue.push(audioBufferSouceNode);
 			    
 			    if(!hasPlayed){
 			    	hasPlayed = true;
 			    	audioBufferSouceNode.start(0);
-			    	playedAudioBufferSouceNodeQueue.push(audioBufferSouceNode);
+			    	souceNodeQueue.shift();
 			    	startPlayInterval(buffer);
 			    }
 
 			    function startPlayInterval(buffer){
 			    	stopDecode = false;
 			    	clearInterval(playIntervalId);
+			    	beginTime = audioContext.currentTime;
 			    	playIntervalId = setInterval(function(){
 				    	if(audioContext.state!='running')
 				    		return;
-				    	playedTime+=50;
 				    	//播放到一半开始解码接下来要播放的音频数据
-				    	if(!stopDecode && playedTime >= buffer.duration*1000/2){
+				    	if(!stopDecode && (audioContext.currentTime-beginTime) >= buffer.duration/2){
 				    		decodeAudioData(index+minSize,minSize);
-				    		stopDecode = true;
 				    	}
 				    	//该分区播放完前100ms，开始播放
-				    	if(playedTime+1000 >= buffer.duration*1000){
-				    		playedTime = 0;
-				    		for(var i=0; i<audioBufferSouceNodeQueue.length; i++){
-				    			if(playedAudioBufferSouceNodeQueue.indexOf(audioBufferSouceNodeQueue[i])==-1){
-				    				var node = audioBufferSouceNodeQueue[i];
-				    				var offsetTime = mp3Info.totalTime*(node.nowIndex-node.beginIndex)/100;
-				    				node.start(0,offsetTime);
-				    				playedAudioBufferSouceNodeQueue.push(audioBufferSouceNodeQueue[i]);
-				    				startPlayInterval(audioBufferSouceNodeQueue[i].buffer);
-				    				break;
-				    			}
-				    		}
+				    	if((audioContext.currentTime-beginTime)+1 >= buffer.duration && souceNodeQueue.length>0){
+				    		var souceNode = souceNodeQueue.shift();
+				    		var startTime = buffer.duration-(audioContext.currentTime-beginTime);
+				    		startTime = startTime>0?startTime:0;
+				    		souceNode.start(startTime);
+		    				startPlayInterval(souceNode.buffer);
 				    	}
-				    },50);
+				    },20);
 			    }
 			    
 				audioBufferSouceNode.onended =  (function(audioBufferSouceNode){
 					return function(){
 						audioBufferSouceNode.disconnect();
 						
-						if(audioBufferSouceNode.beginIndex == indexSize-1){
+						if(audioBufferSouceNode.endIndex == indexSize-1){
 							audioContext.close();
 							//释放资源
-							audioBufferSouceNodeQueue = [];
-							playedAudioBufferSouceNodeQueue = [];
+							souceNodeQueue = [];
+							playedSouceNodeQueue = [];
 						}
 					}
 			    })(audioBufferSouceNode);
@@ -344,7 +335,7 @@
 			var arr = null;
 			var result = null;
 			var length = 0;
-			result = joinNearCachedFileBlock(index);
+			result = joinNextCachedFileBlock(index);
 			return new Promise(function(resolve){
 				resolve(result);
 			})
@@ -381,7 +372,7 @@
 		        		begin = end;
 		        	}
 		        }
-		        resolve(joinNearCachedFileBlock(index));
+		        resolve(joinNextCachedFileBlock(index));
 		        loadFrame(index+minSize,minSize);
 		    }
 		    request.setRequestHeader("Range","bytes="+begin+'-'+(end-1));
@@ -389,18 +380,13 @@
 		});
 
 	}
-	//合并index索引附近所有连续的已经缓存过的分区
-	function joinNearCachedFileBlock(index){
+	//合并index索引之后所有连续的已经缓存过的分区
+	function joinNextCachedFileBlock(index){
 		var length = 0;
 		var arr = null;
 		var result = null;
-		var beginIndex = index;
 		var endIndex = index;
 
-		for(var i=index; i>=0 && fileBlocks[i]; i--){
-			length += fileBlocks[i].byteLength;
-			beginIndex = i;
-		}
 		for(var i=index; i<fileBlocks.length && fileBlocks[i]; i++){
 			length += fileBlocks[i].byteLength;
 			endIndex = i;
@@ -410,14 +396,14 @@
 		arr = new Uint8Array(result);
 		length = 0;
 
-		for(i=beginIndex; i<=endIndex; i++){
+		for(i=index; i<=endIndex; i++){
 			arr.set(new Uint8Array(fileBlocks[i]),length);
 			length += fileBlocks[i].byteLength;
 		}
 
 		return {
 			arrayBuffer: result,
-			beginIndex: beginIndex,
+			beginIndex: index,
 			endIndex: endIndex
 		}
 
