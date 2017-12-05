@@ -267,7 +267,7 @@
 				audioContext.onstatechange = function() {
 				  console.log(audioContext.state);
 				}
-			}else if(audioContext.state=='suspend'){
+			}else if(audioContext.state=='suspended'){
 				audioContext.resume();
 			}
 			if(!nowSouceNode || nowSouceNode && nowSouceNode.finished){
