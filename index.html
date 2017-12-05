@@ -253,11 +253,11 @@
 		decodeAudioData(0,cacheFrameSize,true);
 	}
 	//解码
-	function decodeAudioData(index,minSize,negative){
+	function decodeAudioData(index,minSize,negative,stopDecode){
 		if(index >= indexSize){
 			return;
 		}
-		stopDecode = true;
+		stopDecode = stopDecode;
 		if(audioContext && audioContext.state=='running' && (!nowSouceNode || nowSouceNode && nowSouceNode.finished)){
 			//加载中
 			loading = true;
@@ -284,7 +284,6 @@
 			    audioBufferSouceNode.endIndex = result.endIndex;
 			    souceNodeQueue.push(audioBufferSouceNode);
 			    decoding = false;
-			    stopDecode = false;
 			    if(!hasPlayed){
 			    	hasPlayed = true;
 			    	audioBufferSouceNode.start(0);
@@ -294,23 +293,29 @@
 			    }
 			    //解码接下来要播放的音频数据
 		    	if(!stopDecode && audioBufferSouceNode.endIndex+1<indexSize){
+		    		stopDecode = true;
 		    		setTimeout(function(){
-		    			decodeAudioData(audioBufferSouceNode.endIndex+1,minSize);
+		    			decodeAudioData(audioBufferSouceNode.beginIndex,minSize,null,true);
 		    		},100);
 		    	}
 			    function startPlayInterval(buffer){
+			    	var stopingTime = 0;//暂停时长
 			    	clearInterval(playIntervalId);
 			    	beginTime = audioContext.currentTime;
 			    	playIntervalId = setInterval(function(){
-				    	if(audioContext.state!='running')
+				    	if(audioContext.state!='running'){
+				    		stopingTime += 20;
 				    		return;
-				    	//该分区播放完前100ms，开始播放
+				    	}
+				    	//该分区播放完前500ms，开始播接下来的音频数据
 				    	if((audioContext.currentTime-beginTime)*1000+500 >= buffer.duration*1000){
 				    		if(souceNodeQueue.length>0){
 				    			var souceNode = souceNodeQueue.shift();
-					    		var startTime = buffer.duration-(audioContext.currentTime-beginTime);
-					    		startTime = startTime>0?startTime:0;
-					    		souceNode.start(startTime);
+					    		var startTime = audioContext.currentTime-beginTime-stopingTime;
+					    		//计算时延
+					    		startTime = startTime>buffer.duration?buffer.duration:startTime;
+					    		souceNode.start(0,startTime-0.1);
+					    		finish(nowSouceNode);
 					    		nowSouceNode = souceNode;
 			    				startPlayInterval(souceNode.buffer,souceNode);
 				    		}
@@ -318,19 +323,21 @@
 				    },20);
 			    }
 			    
-				audioBufferSouceNode.onended =  (function(audioBufferSouceNode){
-					return function(){
-						audioBufferSouceNode.finished = true;
-						audioBufferSouceNode.disconnect();
-						clearInterval(playIntervalId);
-						if(audioBufferSouceNode.endIndex == indexSize-1){
-							audioContext.suspend();
-							//释放资源
-							souceNodeQueue = [];
-							playedSouceNodeQueue = [];
-						}
+				audioBufferSouceNode.onended =  function(){
+					finish(audioBufferSouceNode);
+				}
+
+			    function finish(audioBufferSouceNode){
+			    	audioBufferSouceNode.finished = true;
+					audioBufferSouceNode.disconnect();
+					clearInterval(playIntervalId);
+					if(audioBufferSouceNode.endIndex == indexSize-1){
+						audioContext.suspend();
+						//释放资源
+						souceNodeQueue = [];
+						playedSouceNodeQueue = [];
 					}
-			    })(audioBufferSouceNode);
+			    }
 		    }, function(e) { //这个是解码失败会调用的函数
 		        console.log(index,"!哎玛，文件解码失败:(");
 		    });
@@ -347,7 +354,7 @@
 				cached = false;
 			}
 		}
-		//已经缓存偶
+		//对应索引区数据已经缓存
 		if(cached){
 			var arr = null;
 			var result = null;
