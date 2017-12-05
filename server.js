@@ -50,7 +50,18 @@ function sendFile(realPath,req,res){
                 'Content-Range': 'bytes ' + rangeData.start + '-' + rangeData.end + '/' + size,
                 'Content-Length': rangeData.chunkSize
             });
-            raw.pipe(res);
+            raw.on('data',function(chunk){
+            	//加密数据
+            	for(let i=0; i<chunk.length; i++){
+            		chunk[i] = chunk[i]+1;
+            	}
+            	res.write(chunk);
+            });
+            raw.on('end', function(){
+			  console.log('read end');
+			  res.end();
+			});
+            // raw.pipe(res);
         } else {
             res.writeHead(416, "not ok!");
             res.end();

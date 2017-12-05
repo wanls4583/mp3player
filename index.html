@@ -47,6 +47,8 @@
 	        var arrayBuffer = request.response;
 	        var contentLength = request.getResponseHeader('Content-Length');
 	        var contetnRange = request.getResponseHeader('Content-Range');
+	        //数据解密
+	        decrypt(arrayBuffer);
 	        if(contentLength!=32*8){
 	        	throw new Error('获取头部信息出错');
 	        }
@@ -86,6 +88,8 @@
 		        var arrayBuffer = request.response;
 		        var contentLength = request.getResponseHeader('Content-Length');
 		        var contetnRange = request.getResponseHeader('Content-Range');
+		        //数据解密
+		        decrypt(arrayBuffer);
 		        if(contentLength!=156*8){
 		        	throw new Error('获取第一帧数据帧出错');
 		        }
@@ -393,6 +397,8 @@
 		        var arrayBuffer = request.response;
 		        var begin = 0;
 		        var end = 0;
+		        //数据解密
+		        decrypt(arrayBuffer);
 		        //缓存数据块
 		        for(var i=beginIndex; i<index+minSize && i<indexSize; i++){
 		        	if(mp3Info.toc){//VBR编码模式
@@ -448,7 +454,13 @@
 		}
 
 	}
-
+	//数据解密(基于后台加密规则)
+	function decrypt(arrayBuffer){
+		var arr = new Uint8Array(arrayBuffer);
+		for(var i=0; i<arr.length; i++){
+			arr[i] = arr[i]-1;
+		}
+	}
 	//跳转某个索引
 	function seek(index){
 		if(loading||decoding){
