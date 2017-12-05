@@ -22,7 +22,6 @@
 	var playIntervalId = null;//播放计时器
 	var hasPlayed = false;//是否已经开始播放
 	var souceNodeQueue = [];//音频资源队列
-	var stopDecode = false;//是否有数据正在解码中
 	var nowSouceNode = null;//正在播放的资源节点
 	var loading = false;//加载中
 	var decoding = false;//解码中
@@ -253,11 +252,10 @@
 		decodeAudioData(0,cacheFrameSize,true);
 	}
 	//解码
-	function decodeAudioData(index,minSize,negative,stopDecode){
+	function decodeAudioData(index,minSize,negative){
 		if(index >= indexSize){
 			return;
 		}
-		stopDecode = stopDecode;
 		if(audioContext && audioContext.state=='running' && (!nowSouceNode || nowSouceNode && nowSouceNode.finished)){
 			//加载中
 			loading = true;
@@ -276,6 +274,7 @@
 				//解码中
 				decoding = true;
 			}
+			// alert('解码:'+result.beginIndex+','+result.endIndex)
 			audioContext.decodeAudioData(result.arrayBuffer, function(buffer) { //解码成功则调用此函数，参数buffer为解码后得到的结果
 		    	var audioBufferSouceNode = audioContext.createBufferSource();
 		    	audioBufferSouceNode.connect(audioContext.destination);
@@ -284,20 +283,19 @@
 			    audioBufferSouceNode.endIndex = result.endIndex;
 			    souceNodeQueue.push(audioBufferSouceNode);
 			    decoding = false;
+			    // alert('解码完成:'+result.beginIndex+','+result.endIndex);
 			    if(!hasPlayed){
 			    	hasPlayed = true;
 			    	audioBufferSouceNode.start(0);
+			    	if(audioBufferSouceNode.endIndex+1<indexSize){
+			    		setTimeout(function(){
+			    			decodeAudioData(audioBufferSouceNode.beginIndex,minSize*2);
+			    		},buffer.duration*1000/2);
+		    		}
 			    	souceNodeQueue.shift();
 			    	nowSouceNode = audioBufferSouceNode;
 			    	startPlayInterval(buffer);
 			    }
-			    //解码接下来要播放的音频数据
-		    	if(!stopDecode && audioBufferSouceNode.endIndex+1<indexSize){
-		    		stopDecode = true;
-		    		setTimeout(function(){
-		    			decodeAudioData(audioBufferSouceNode.beginIndex,minSize,null,true);
-		    		},100);
-		    	}
 			    function startPlayInterval(buffer){
 			    	var stopingTime = 0;//暂停时长
 			    	clearInterval(playIntervalId);
@@ -310,32 +308,39 @@
 				    	//该分区播放完前500ms，开始播接下来的音频数据
 				    	if((audioContext.currentTime-beginTime)*1000+500 >= buffer.duration*1000){
 				    		if(souceNodeQueue.length>0){
-				    			var souceNode = souceNodeQueue.shift();
 					    		var startTime = audioContext.currentTime-beginTime-stopingTime;
 					    		//计算时延
 					    		startTime = startTime>buffer.duration?buffer.duration:startTime;
-					    		souceNode.start(0,startTime-0.1);
-					    		finish(nowSouceNode);
-					    		nowSouceNode = souceNode;
-			    				startPlayInterval(souceNode.buffer,souceNode);
+					    		finish(nowSouceNode,startTime-0.1);
 				    		}
 				    	}
 				    },20);
 			    }
 			    
 				audioBufferSouceNode.onended =  function(){
-					finish(audioBufferSouceNode);
+					finish(audioBufferSouceNode,audioBufferSouceNode.buffer.duration);
 				}
 
-			    function finish(audioBufferSouceNode){
+			    function finish(audioBufferSouceNode,startTime){
 			    	audioBufferSouceNode.finished = true;
 					audioBufferSouceNode.disconnect();
-					clearInterval(playIntervalId);
 					if(audioBufferSouceNode.endIndex == indexSize-1){
+						clearInterval(playIntervalId);
 						audioContext.suspend();
 						//释放资源
 						souceNodeQueue = [];
 						playedSouceNodeQueue = [];
+					}else{
+						if(souceNodeQueue.length>0){
+							var souceNode = souceNodeQueue.shift();
+				    		souceNode.start(0,startTime-0.1);
+				    		if(souceNode.endIndex+1<indexSize){
+				    			decodeAudioData(souceNode.beginIndex,minSize*2);
+				    		}
+				    		nowSouceNode = souceNode;
+		    				startPlayInterval(souceNode.buffer,souceNode);
+						}
+						
 					}
 			    }
 		    }, function(e) { //这个是解码失败会调用的函数
@@ -348,12 +353,16 @@
 		var begin = 0;
 		var end = 0;
 		var cached = true;
+		var beginIndex = index;//避免网络加载重复数据
 		index = index>=indexSize?indexSize-1:index;
 		for(var i=index; i<index+minSize && i<indexSize; i++){
 			if(!fileBlocks[i]){
 				cached = false;
+				break;
 			}
+			beginIndex = i;
 		}
+		
 		//对应索引区数据已经缓存
 		if(cached){
 			var arr = null;
@@ -385,7 +394,7 @@
 		        var begin = 0;
 		        var end = 0;
 		        //缓存数据块
-		        for(var i=index; i<index+minSize && i<indexSize; i++){
+		        for(var i=beginIndex; i<index+minSize && i<indexSize; i++){
 		        	if(mp3Info.toc){//VBR编码模式
 		        		end = begin+(mp3Info.toc[i+1]/256*fileSize - mp3Info.toc[i]/256*fileSize)>>0;
 		        		fileBlocks[i] = arrayBuffer.slice(begin,end);
@@ -415,6 +424,7 @@
 		//消极情况下只返回minSize个数据块
 		if(negative){
 			indexLength = index+minSize;
+			indexLength = indexLength>=indexSize?indexSize-1:indexLength;
 		}
 
 		for(var i=index; i<indexLength && fileBlocks[i]; i++){
