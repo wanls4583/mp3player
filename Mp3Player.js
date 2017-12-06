@@ -224,6 +224,7 @@
             Player.nowSouceNode = null; //正在播放的资源节点
             Player.loading = false; //加载中
             Player.decoding = false; //解码中
+            Player.loadingIndexMap = []; //正在加载中的索引，防止重复加载相同的数据
             Player.decodeAudioData(0, Player.cacheFrameSize, true);
         },
         //解码
@@ -319,7 +320,7 @@
                         }
                     }
                 }, function(e) { //这个是解码失败会调用的函数
-                    console.log(index, "!哎玛，文件解码失败:(");
+                    console.log(index, "解码失败");
                 });
             });
         },
@@ -329,7 +330,14 @@
             var end = 0;
             var cached = true;
             var beginIndex = index; //避免网络加载重复数据
+            var originMinSize = minSize;
+            if (Player.checkIndexArr(index)) { //有与正要加载的索引范围相交的索引区正在加载，等待其加载完成再加载
+                return Player.loadPromise.then(function() {
+                    return Player.loadFrame(index, minSize, negative);
+                })
+            }
             index = index >= indexSize ? indexSize - 1 : index;
+            //防止头部加载重复数据
             for (var i = index; i < index + minSize && i < indexSize; i++) {
                 if (!Player.fileBlocks[i]) {
                     cached = false;
@@ -347,6 +355,12 @@
                     resolve(result);
                 })
             }
+            //防止尾部加载重复数据
+            for (var i = index + minSize - 1; i > beginIndex; i--) {
+                if (Player.fileBlocks[i]) {
+                    minSize--;
+                }
+            }
             if (Player.mp3Info.toc != null) {
                 begin = (Player.mp3Info.toc[index] / 256 * Player.mp3Info.fileSize) >> 0;
                 end = (Player.mp3Info.toc[index + minSize] / 256 * Player.mp3Info.fileSize) >> 0;
@@ -356,7 +370,11 @@
                 end = (begin + Player.mp3Info.frameSize * minSize) >> 0;
                 end = end >= Player.mp3Info.fileSize ? Player.mp3Info.fileSize : end;
             }
-            return new Promise(function(resolve, reject) {
+            Player.loadingIndexMap[index] = {
+                index: index,
+                size: originMinSize
+            };
+            return Player.loadPromise = new Promise(function(resolve, reject) {
                 var request = new XMLHttpRequest();
                 request.open('GET', url, true);
                 request.responseType = 'arraybuffer';
@@ -378,12 +396,25 @@
                             begin = end;
                         }
                     }
-                    resolve(Player.joinNextCachedFileBlock(index, minSize, negative));
-                    Player.loadFrame(index + minSize, minSize);
+                    resolve(Player.joinNextCachedFileBlock(index, originMinSize, negative));
+                    delete Player.loadingIndexMap[index];
+                    setTimeout(function() {
+                        Player.loadFrame(index + originMinSize, originMinSize);
+                    }, 1);
                 }
                 request.setRequestHeader("Range", "bytes=" + begin + '-' + (end - 1));
                 request.send();
             });
+        },
+        //检查是否有相同索引的数据正在加载
+        checkIndexArr: function(index, size) {
+            var loadingIndexMap = Player.loadingIndexMap;
+            for (var index in loadingIndexMap) {
+                var obj = loadingIndexMap[index];
+                if ((obj.index <= index && obj.index + obj.size - 1 >= index) || (obj.index <= index + size - 1 && obj.index + obj.size - 1 >= index + size - 1)) {
+                    return true;
+                }
+            }
         },
         //合并index索引之后所有连续的已经缓存过的分区
         joinNextCachedFileBlock: function(index, minSize, negative) {
