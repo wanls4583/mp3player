@@ -13,7 +13,14 @@
     <script type="text/javascript" src="Mp3Player.js"></script>
     <script type="text/javascript">
 
-    var mp3 = new Mp3Player('test.mp3');
+    var mp3 = new Mp3Player('test.mp3',{
+    	decrypt:function(arrayBuffer) {
+            var arr = new Uint8Array(arrayBuffer);
+            for (var i = 0; i < arr.length; i++) {
+                arr[i] = arr[i] - 1;
+            }
+        }
+    });
 
     mp3.play();
 
