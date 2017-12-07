@@ -214,17 +214,18 @@
         init: function(mp3Info) {
             Player.mp3Info = mp3Info;
             Player.audioContext = null;
-            Player.AudioContext = AudioContext || webkitAudioContext;
+            Player.AudioContext = window.AudioContext || window.webkitAudioContext;
             Player.fileBlocks = new Array(100); //音频数据分区
-            Player.cacheFrameSize = 10; //每次加载的帧数
+            Player.cacheFrameSize = 10; //每次加载的分区数
             Player.indexSize = 100; //索引个数
             Player.playIntervalId = null; //播放计时器
             Player.hasPlayed = false; //是否已经开始播放
-            Player.souceNodeQueue = []; //音频资源队列
+            Player.souceNodeQueue = []; //音频资源节点队列
             Player.nowSouceNode = null; //正在播放的资源节点
             Player.loading = false; //加载中
             Player.decoding = false; //解码中
             Player.loadingIndexMap = []; //正在加载中的索引，防止重复加载相同的数据
+            Player.loadingPromise = null; //数据加载异步对象集合
             Player.decodeAudioData(0, Player.cacheFrameSize, true);
         },
         //解码
@@ -331,8 +332,9 @@
             var cached = true;
             var beginIndex = index; //避免网络加载重复数据
             var originMinSize = minSize;
-            if (Player.checkIndexArr(index)) { //有与正要加载的索引范围相交的索引区正在加载，等待其加载完成再加载
-                return Player.loadPromise.then(function() {
+            if (Player.loadingPromise) { //有与正要加载的索引范围相交的索引区正在加载，等待其加载完成再加载
+                Player.stopNextLoad = negative;
+                return Player.loadingPromise.then(function() {
                     return Player.loadFrame(index, minSize, negative);
                 })
             }
@@ -341,32 +343,37 @@
             for (var i = index; i < index + minSize && i < indexSize; i++) {
                 if (!Player.fileBlocks[i]) {
                     cached = false;
+                    beginIndex = i;
+                    minSize = minSize - (beginIndex-index);
                     break;
                 }
-                beginIndex = i;
             }
             //对应索引区数据已经缓存
             if (cached) {
                 var arr = null;
                 var result = null;
                 var length = 0;
-                result = Player.joinNextCachedFileBlock(index, minSize, negative);
+                result = Player.joinNextCachedFileBlock(index, minSize, negative); 
                 return new Promise(function(resolve) {
                     resolve(result);
                 })
             }
             //防止尾部加载重复数据
-            for (var i = index + minSize - 1; i > beginIndex; i--) {
+            for (var i = beginIndex + minSize - 1; i > beginIndex; i--) {
                 if (Player.fileBlocks[i]) {
                     minSize--;
+                }else{
+                    break;
                 }
             }
+            if(beginIndex+minSize > indexSize){
+                minSize = indexSize-beginIndex;
+            }
             if (Player.mp3Info.toc != null) {
-                begin = (Player.mp3Info.toc[index] / 256 * Player.mp3Info.fileSize) >> 0;
-                end = (Player.mp3Info.toc[index + minSize] / 256 * Player.mp3Info.fileSize) >> 0;
-                end = end >= Player.mp3Info.fileSize ? Player.mp3Info.fileSize : end;
+                begin = (Player.mp3Info.toc[beginIndex] / 256 * Player.mp3Info.fileSize) >> 0;
+                end = (Player.mp3Info.toc[beginIndex + minSize] / 256 * Player.mp3Info.fileSize) >> 0;
             } else {
-                begin = (Player.mp3Info.frameSize * index + Player.mp3Info.headerLength) >> 0;
+                begin = (Player.mp3Info.frameSize * beginIndex + Player.mp3Info.headerLength) >> 0;
                 end = (begin + Player.mp3Info.frameSize * minSize) >> 0;
                 end = end >= Player.mp3Info.fileSize ? Player.mp3Info.fileSize : end;
             }
@@ -374,7 +381,8 @@
                 index: index,
                 size: originMinSize
             };
-            return Player.loadPromise = new Promise(function(resolve, reject) {
+            console.log('loading:',beginIndex,minSize)
+            var promise = new Promise(function(resolve, reject) {
                 var request = new XMLHttpRequest();
                 request.open('GET', url, true);
                 request.responseType = 'arraybuffer';
@@ -385,7 +393,7 @@
                     //数据解密
                     decrypt(arrayBuffer);
                     //缓存数据块
-                    for (var i = beginIndex; i < index + minSize && i < indexSize; i++) {
+                    for (var i = beginIndex; i < beginIndex + minSize && i < indexSize; i++) {
                         if (Player.mp3Info.toc) { //VBR编码模式
                             end = begin + (Player.mp3Info.toc[i + 1] / 256 * Player.mp3Info.fileSize - Player.mp3Info.toc[i] / 256 * Player.mp3Info.fileSize) >> 0;
                             Player.fileBlocks[i] = arrayBuffer.slice(begin, end);
@@ -397,25 +405,33 @@
                         }
                     }
                     resolve(Player.joinNextCachedFileBlock(index, originMinSize, negative));
+                    if(!Player.stopNextLoad){
+                        setTimeout(function(){
+                            Player.stopNextLoad = false;
+                            Player.loadFrame(index + originMinSize, originMinSize);
+                        },0)
+                    }
+                    Player.loadingPromise = null;
                     delete Player.loadingIndexMap[index];
-                    setTimeout(function() {
-                        Player.loadFrame(index + originMinSize, originMinSize);
-                    }, 1);
+                    console.log('load完成:',beginIndex,minSize)
                 }
                 request.setRequestHeader("Range", "bytes=" + begin + '-' + (end - 1));
                 request.send();
             });
+            Player.loadingPromise = promise;
+            return promise;
         },
-        //检查是否有相同索引的数据正在加载
-        checkIndexArr: function(index, size) {
-            var loadingIndexMap = Player.loadingIndexMap;
-            for (var index in loadingIndexMap) {
-                var obj = loadingIndexMap[index];
-                if ((obj.index <= index && obj.index + obj.size - 1 >= index) || (obj.index <= index + size - 1 && obj.index + obj.size - 1 >= index + size - 1)) {
-                    return true;
-                }
-            }
-        },
+        //检查将要加载的数据索引区范围和正在加载的数据索引区范围是否有相交部分(放弃，ajax多线程加载大数据会返回net::ERR_CONNECTION_RESET)
+        // checkIndexArr: function(index, size) {
+        //     var loadingIndexMap = Player.loadingIndexMap;
+        //     for (var key in loadingIndexMap) {
+        //         var obj = loadingIndexMap[key];
+        //         if ((obj.index <= index && obj.index + obj.size - 1 >= index) || (obj.index <= index + size - 1 && obj.index + obj.size - 1 >= index + size - 1)) {
+        //             return key;
+        //         }
+        //     }
+        //     return -1;
+        // },
         //合并index索引之后所有连续的已经缓存过的分区
         joinNextCachedFileBlock: function(index, minSize, negative) {
             var length = 0;
@@ -447,12 +463,6 @@
         },
         //跳转某个索引
         seek: function(index) {
-            if (Player.loading || Player.decoding) {
-                setTimeout(function() {
-                    seek(index);
-                }, 500);
-                return;
-            }
             clearInterval(Player.playIntervalId);
             Player.hasPlayed = false;
             if (Player.nowSouceNode) {
@@ -463,6 +473,7 @@
             Player.decodeAudioData(index, Player.cacheFrameSize, true);
         }
     }
+    window.seek = Player.seek;
     //对外接口
     function Mp3Player(_url, opt) {
         url = _url;
