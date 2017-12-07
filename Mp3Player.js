@@ -2,6 +2,8 @@
     var indexSize = 100; //区块个数
     var url = ''; //音频链接
     var decrypt = function() {}; //解密函数
+    var iosClicked = false;
+    var isIos =  navigator.userAgent.indexOf('iPhone')>-1;
     Array.prototype.indexOf = function(item) {
         for (var i = 0; i < this.length; i++) {
             if (this[i] == item) {
@@ -63,6 +65,7 @@
                     var arrayBuffer = request.response;
                     var contentLength = request.getResponseHeader('Content-Length');
                     var contetnRange = request.getResponseHeader('Content-Range');
+                    MP3InfoAnalysis.mp3Info.firstFrame = arrayBuffer; //存储第一帧数据帧
                     //数据解密
                     decrypt(arrayBuffer);
                     if (contentLength != 156 * 8) {
@@ -90,6 +93,7 @@
                 }
             }
             bufferStr = bufferStr.toUpperCase();
+            MP3InfoAnalysis.mp3Info.frameHeaderFlag = bufferStr.substring(0,4); //数据帧开始标识
             if (bufferStr.indexOf('496E666F') != -1) { //存在Info头
                 vbrDataBuffer = arrayBuffer.slice(bufferStr.indexOf('496E666F') / 2);
                 return getInfo(vbrDataBuffer);
@@ -226,7 +230,7 @@
             Player.decoding = false; //解码中
             Player.loadingIndexMap = []; //正在加载中的索引，防止重复加载相同的数据
             Player.loadingPromise = null; //数据加载异步对象集合
-            Player.decodeAudioData(0, Player.cacheFrameSize, true);
+            Player.decodeAudioData(2, Player.cacheFrameSize, true);
         },
         //解码
         decodeAudioData: function(index, minSize, negative) {
@@ -251,7 +255,7 @@
                     //解码中
                     Player.decoding = true;
                 }
-                // alert('解码:'+result.beginIndex+','+result.endIndex)
+                // console.log('解码:'+result.beginIndex+','+result.endIndex)
                 Player.audioContext.decodeAudioData(result.arrayBuffer, function(buffer) { //解码成功则调用此函数，参数buffer为解码后得到的结果
                     var audioBufferSouceNode = Player.audioContext.createBufferSource();
                     audioBufferSouceNode.connect(Player.audioContext.destination);
@@ -260,14 +264,20 @@
                     audioBufferSouceNode.endIndex = result.endIndex;
                     Player.souceNodeQueue.push(audioBufferSouceNode);
                     Player.decoding = false;
-                    // alert('解码完成:'+result.beginIndex+','+result.endIndex);
+                    // console.log('解码完成:'+result.beginIndex+','+result.endIndex,'duration:',buffer.duration);
                     if (!Player.hasPlayed) {
                         Player.hasPlayed = true;
-                        audioBufferSouceNode.start(0);
                         if (audioBufferSouceNode.endIndex + 1 < indexSize) {
                             setTimeout(function() {
                                 Player.decodeAudioData(audioBufferSouceNode.beginIndex, minSize * 2);
                             }, buffer.duration * 1000 / 2);
+                        }
+                        if(isIos && iosClicked || !isIos){
+                            if(audioBufferSouceNode.start){
+                                audioBufferSouceNode.start(0);
+                            }else{
+                                audioBufferSouceNode.noteOn(0);
+                            }
                         }
                         Player.souceNodeQueue.shift();
                         Player.nowSouceNode = audioBufferSouceNode;
@@ -311,7 +321,11 @@
                         } else {
                             if (Player.souceNodeQueue.length > 0) {
                                 var souceNode = Player.souceNodeQueue.shift();
-                                souceNode.start(0, startTime - 0.1);
+                                if(souceNode.start){
+                                    souceNode.start(0, startTime);
+                                }else{
+                                    audioBufferSouceNode.noteOn(0,startTime);
+                                }
                                 if (souceNode.endIndex + 1 < indexSize) {
                                     Player.decodeAudioData(souceNode.beginIndex, minSize * 2);
                                 }
@@ -381,7 +395,7 @@
                 index: index,
                 size: originMinSize
             };
-            console.log('loading:',beginIndex,minSize)
+            // console.log('loading:',beginIndex,minSize)
             var promise = new Promise(function(resolve, reject) {
                 var request = new XMLHttpRequest();
                 request.open('GET', url, true);
@@ -413,7 +427,7 @@
                     }
                     Player.loadingPromise = null;
                     delete Player.loadingIndexMap[index];
-                    console.log('load完成:',beginIndex,minSize)
+                    // console.log('load完成:',beginIndex,minSize)
                 }
                 request.setRequestHeader("Range", "bytes=" + begin + '-' + (end - 1));
                 request.send();
@@ -439,26 +453,100 @@
             var result = null;
             var endIndex = index;
             var indexLength = Player.fileBlocks.length;
+            // console.log('join',index)
             //消极情况下只返回minSize个数据块
             if (negative) {
                 indexLength = index + minSize;
                 indexLength = indexLength >= indexSize ? indexSize - 1 : indexLength;
             }
             for (var i = index; i < indexLength && Player.fileBlocks[i]; i++) {
-                length += Player.fileBlocks[i].byteLength;
                 endIndex = i;
+            }
+            //头部与尾部数据修复
+            Player.fixFileBlock(index,endIndex);
+            for (var i = index; i < indexLength && Player.fileBlocks[i]; i++) {
+                length += Player.fileBlocks[i].byteLength;
             }
             result = new ArrayBuffer(length);
             arr = new Uint8Array(result);
             length = 0;
+            
             for (i = index; i <= endIndex; i++) {
                 arr.set(new Uint8Array(Player.fileBlocks[i]), length);
                 length += Player.fileBlocks[i].byteLength;
             }
+            // console.log('joinend')
             return {
                 arrayBuffer: result,
                 beginIndex: index,
                 endIndex: endIndex
+            }
+        },
+        //数据块头部调整(修复数据块第一帧)
+        fixFileBlock: function(beginIndex, endIndex){
+
+            delExtraUint8Array(beginIndex);
+            addDefectUint8Array(endIndex);
+
+            //获取数据块头部多余的数据长度(字节)
+            function getExtraLength(index){
+                var i = 0;
+                var count = 100;
+                var bufferStr = '';
+                var fileBlock = Player.fileBlocks[index];
+                var uint8Array = new Uint8Array(fileBlock);
+                if(!fileBlock){
+                    return 0;
+                }
+                while(true){
+                    for(; i<count && i<uint8Array.length; i++){
+                        if (uint8Array[i] <= 15) {
+                            bufferStr += '0' + uint8Array[i].toString(16);
+                        } else {
+                            bufferStr += uint8Array[i].toString(16);
+                        }
+                    }
+                    bufferStr = bufferStr.toUpperCase();
+                    if(bufferStr.indexOf(Player.mp3Info.frameHeaderFlag)!=-1){
+                        return bufferStr.indexOf(Player.mp3Info.frameHeaderFlag)/2;
+                    }
+                    if(i>=uint8Array.length){
+                        return 0;
+                    }
+                    count*=2;
+                }
+            }
+            //获取数据块头部多余数据
+            function delExtraUint8Array(index){
+                var fileBlock = Player.fileBlocks[index];
+                var length = getExtraLength(index);
+                var result = false;
+                var t = new Uint8Array(Player.fileBlocks[index])
+                if(length>0){
+                    result = fileBlock.slice(0,length);
+                    Player.fileBlocks[index] = fileBlock.slice(length);
+                    Player.fileBlocks[index].deledData = result; //记录头部删除的多余数据
+                }
+                return result;
+            }
+            //数据块尾部添加数据块最后一帧缺失的数据
+            function addDefectUint8Array(index){
+                var nextBlock = Player.fileBlocks[index+1];
+                var arrayBuffer = Player.fileBlocks[index];
+                var extraBufferArray = nextBlock && (nextBlock.deledData || delExtraUint8Array(index+1));
+                var extraUint8Array = null;
+                var result = null;
+                var dataArr = null;
+                if(!extraBufferArray){
+                    return arrayBuffer;
+                }
+                extraUint8Array = new Uint8Array(extraBufferArray);
+                result = new ArrayBuffer(arrayBuffer.byteLength+extraUint8Array.length);
+                dataArr = new Uint8Array(result);
+                dataArr.set(extraUint8Array,arrayBuffer.byteLength);
+                result.deledData = Player.fileBlocks[index].deledData;
+                Player.fileBlocks[index] = result;
+                return result;
             }
         },
         //跳转某个索引
@@ -476,12 +564,30 @@
     window.seek = Player.seek;
     //对外接口
     function Mp3Player(_url, opt) {
+        var playTimoutId = null;
         url = _url;
         if (typeof opt == 'object' && typeof opt.decrypt == 'function') {
             decrypt = opt.decrypt;
         }
-        this.play = function() {
-            MP3InfoAnalysis.init().then(Player.init);
+        MP3InfoAnalysis.init().then(Player.init);
+        this.play = function(){
+            var self = this;
+            clearTimeout(playTimoutId);
+            if(Player.decoding||Player.loading){
+                playTimoutId = setTimeout(function(){
+                    self.play();
+                },100);
+            }
+            var nowSouceNode = Player.nowSouceNode;
+            if(nowSouceNode){
+                if(nowSouceNode.start){
+                    nowSouceNode.start(0);
+                }else{
+                    nowSouceNode.noteOn(0);
+                }
+                iosClicked = true;
+            }
+            
         }
         this.pause = function() {
             if (Player.audioContext) {
