@@ -57,6 +57,7 @@
         },
         //加载第一个数据帧
         loadFirstFrame: function() {
+            var mp3Info = MP3InfoAnalysis.mp3Info;
             return new Promise(function(resolve, reject) {
                 var request = new XMLHttpRequest();
                 request.open('GET', url, true);
@@ -65,7 +66,7 @@
                     var arrayBuffer = request.response;
                     var contentLength = request.getResponseHeader('Content-Length');
                     var contetnRange = request.getResponseHeader('Content-Range');
-                    MP3InfoAnalysis.mp3Info.firstFrame = arrayBuffer; //存储第一帧数据帧
+                    mp3Info.firstFrame = arrayBuffer; //存储第一帧数据帧
                     //数据解密
                     decrypt(arrayBuffer);
                     if (contentLength != 156 * 8) {
@@ -73,19 +74,21 @@
                     }
                     resolve(arrayBuffer);
                 }
-                request.setRequestHeader("Range", "bytes=" + MP3InfoAnalysis.mp3Info.headerLength + '-' + (MP3InfoAnalysis.mp3Info.headerLength + 156 * 8 - 1));
+                request.setRequestHeader("Range", "bytes=" + mp3Info.headerLength + '-' + (mp3Info.headerLength + 156 * 8 - 1));
                 request.send();
             })
         },
         //获取VBR(OR CBR)信息
         getInfo: function(arrayBuffer) {
+            var mp3Info = MP3InfoAnalysis.mp3Info;
             var bufferStr = '';
             var uint8Array = null;
             var vbrDataBuffer = null;
             var samplingRate = MP3InfoAnalysis.getSamplingRate(arrayBuffer);
+            var headerFlag = '';
             uint8Array = new Uint8Array(arrayBuffer);
             //转换成16进制码
-            for (var i = 0; i < indexSize; i++) {
+            for (var i = 0; i < 4; i++) {
                 if (uint8Array[i] <= 15) {
                     bufferStr += '0' + uint8Array[i].toString(16);
                 } else {
@@ -93,16 +96,14 @@
                 }
             }
             bufferStr = bufferStr.toUpperCase();
-            MP3InfoAnalysis.mp3Info.frameHeaderFlag = bufferStr.substring(0,4); //数据帧开始标识
-            if (bufferStr.indexOf('496E666F') != -1) { //存在Info头
-                vbrDataBuffer = arrayBuffer.slice(bufferStr.indexOf('496E666F') / 2);
+            mp3Info.frameHeaderFlag = bufferStr.substring(0,4); //数据帧开始标识
+            headerFlag = MP3InfoAnalysis.hasVbrHeader(arrayBuffer);
+            if (headerFlag != -1) { //存在Info头或者Xing头
+                vbrDataBuffer = arrayBuffer.slice(headerFlag / 2);
                 return getInfo(vbrDataBuffer);
-            } else if (bufferStr.indexOf('58696E67') != -1) { //存在Xing头
-                vbrDataBuffer = arrayBuffer.slice(bufferStr.indexOf('58696E67') / 2);
-                return getInfo(vbrDataBuffer);
-            } else { //纯CBR编码
+            } else{ //纯CBR编码
                 var frameSize = MP3InfoAnalysis.getFrameSize(arrayBuffer);
-                var totalTime = (MP3InfoAnalysis.mp3Info.fileSize - MP3InfoAnalysis.mp3Info.headerLength) / samplingRate;
+                var totalTime = (mp3Info.fileSize - mp3Info.headerLength) / samplingRate;
                 return {
                     frameSize: frameSize
                 };
@@ -153,12 +154,32 @@
             }
 
             function getInfo(vbrDataBuffer) {
-                MP3InfoAnalysis.mp3Info.totalFrame = getTotalFrame(vbrDataBuffer);
-                MP3InfoAnalysis.mp3Info.totalTime = 1152 * MP3InfoAnalysis.mp3Info.totalFrame / samplingRate;
-                MP3InfoAnalysis.mp3Info.totalSize = getTotalSize(vbrDataBuffer) + MP3InfoAnalysis.mp3Info.headerLength;
-                MP3InfoAnalysis.mp3Info.toc = getToc(vbrDataBuffer);
-                return MP3InfoAnalysis.mp3Info;
+                mp3Info.totalFrame = getTotalFrame(vbrDataBuffer);
+                mp3Info.totalTime = 1152 * mp3Info.totalFrame / samplingRate;
+                mp3Info.totalSize = getTotalSize(vbrDataBuffer);
+                mp3Info.toc = getToc(vbrDataBuffer);
+                return mp3Info;
             }
+        },
+        //是否存在Info头或者Xing头
+        hasVbrHeader: function(arrayBuffer){
+            var bufferStr = '';
+            var uint8Array = new Uint8Array(arrayBuffer);
+            //转换成16进制码
+            for (var i = 0; i < indexSize && i < uint8Array.length; i++) {
+                if (uint8Array[i] <= 15) {
+                    bufferStr += '0' + uint8Array[i].toString(16);
+                } else {
+                    bufferStr += uint8Array[i].toString(16);
+                }
+            }
+            bufferStr = bufferStr.toUpperCase();
+            if (bufferStr.indexOf('496E666F') != -1) { //存在Info头
+                return bufferStr.indexOf('496E666F');
+            }else if(bufferStr.indexOf('58696E67') != -1){ //存在Xing头
+                return bufferStr.indexOf('58696E67');
+            }
+            return -1;
         },
         //获取比特率
         getBitRate: function(arrayBuffer) {
@@ -215,8 +236,7 @@
     }
     //音频播放对象
     var Player = {
-        init: function(mp3Info) {
-            Player.mp3Info = mp3Info;
+        init: function() {
             Player.audioContext = null;
             Player.AudioContext = window.AudioContext || window.webkitAudioContext;
             Player.fileBlocks = new Array(100); //音频数据分区
@@ -285,24 +305,24 @@
                     }
 
                     function startPlayInterval(buffer) {
-                        var stopingTime = 0; //暂停时长
-                        clearInterval(Player.playIntervalId);
-                        beginTime = Player.audioContext.currentTime;
-                        Player.playIntervalId = setInterval(function() {
-                            if (Player.audioContext.state != 'running') {
-                                stopingTime += 20;
-                                return;
-                            }
-                            //该分区播放完前500ms，开始播接下来的音频数据
-                            if ((Player.audioContext.currentTime - beginTime) * 1000 + 500 >= buffer.duration * 1000) {
-                                if (Player.souceNodeQueue.length > 0) {
-                                    var startTime = Player.audioContext.currentTime - beginTime - stopingTime;
-                                    //计算时延
-                                    startTime = startTime > buffer.duration ? buffer.duration : startTime;
-                                    finish(Player.nowSouceNode, startTime);
-                                }
-                            }
-                        }, 20);
+                        // var stopingTime = 0; //暂停时长
+                        // clearInterval(Player.playIntervalId);
+                        // beginTime = Player.audioContext.currentTime;
+                        // Player.playIntervalId = setInterval(function() {
+                        //     if (Player.audioContext.state != 'running') {
+                        //         stopingTime += 20;
+                        //         return;
+                        //     }
+                        //     //该分区播放完前500ms，开始播接下来的音频数据
+                        //     if ((Player.audioContext.currentTime - beginTime) * 1000 + 500 >= buffer.duration * 1000) {
+                        //         if (Player.souceNodeQueue.length > 0) {
+                        //             var startTime = Player.audioContext.currentTime - beginTime - stopingTime;
+                        //             //计算时延
+                        //             startTime = startTime > buffer.duration ? buffer.duration : startTime;
+                        //             finish(Player.nowSouceNode, startTime);
+                        //         }
+                        //     }
+                        // }, 20);
                     }
                     //兼容移动端黑屏后interVal计时器停止的问题
                     audioBufferSouceNode.onended = function() {
@@ -345,6 +365,7 @@
             var end = 0;
             var cached = true;
             var beginIndex = index; //避免网络加载重复数据
+            var endIndex = 0;
             var originMinSize = minSize;
             if (Player.loadingPromise) { //有与正要加载的索引范围相交的索引区正在加载，等待其加载完成再加载
                 Player.stopNextLoad = negative;
@@ -373,7 +394,9 @@
                 })
             }
             //防止尾部加载重复数据
-            for (var i = beginIndex + minSize - 1; i > beginIndex; i--) {
+            var i = beginIndex + minSize - 1;
+            i = i>= indexSize ? indexSize - 1 : i;
+            for (; i > beginIndex; i--) {
                 if (Player.fileBlocks[i]) {
                     minSize--;
                 }else{
@@ -383,14 +406,9 @@
             if(beginIndex+minSize > indexSize){
                 minSize = indexSize-beginIndex;
             }
-            if (Player.mp3Info.toc != null) {
-                begin = (Player.mp3Info.toc[beginIndex] / 256 * Player.mp3Info.fileSize) >> 0;
-                end = (Player.mp3Info.toc[beginIndex + minSize] / 256 * Player.mp3Info.fileSize) >> 0;
-            } else {
-                begin = (Player.mp3Info.frameSize * beginIndex + Player.mp3Info.headerLength) >> 0;
-                end = (begin + Player.mp3Info.frameSize * minSize) >> 0;
-                end = end >= Player.mp3Info.fileSize ? Player.mp3Info.fileSize : end;
-            }
+
+            begin = Player.getRangeBeginByIndex(beginIndex);
+            end = Player.getRangeBeginByIndex(beginIndex+minSize);
             Player.loadingIndexMap[index] = {
                 index: index,
                 size: originMinSize
@@ -408,12 +426,12 @@
                     decrypt(arrayBuffer);
                     //缓存数据块
                     for (var i = beginIndex; i < beginIndex + minSize && i < indexSize; i++) {
-                        if (Player.mp3Info.toc) { //VBR编码模式
-                            end = begin + (Player.mp3Info.toc[i + 1] / 256 * Player.mp3Info.fileSize - Player.mp3Info.toc[i] / 256 * Player.mp3Info.fileSize) >> 0;
+                        if (MP3InfoAnalysis.mp3Info.toc) { //VBR编码模式
+                            end = (begin + (Player.getRangeBeginByIndex(i+1) - Player.getRangeBeginByIndex(i))) >> 0;
                             Player.fileBlocks[i] = arrayBuffer.slice(begin, end);
                             begin = end;
                         } else { //CBR编码模式
-                            end = begin + Player.mp3Info.frameSize;
+                            end = begin + MP3InfoAnalysis.mp3Info.frameSize;
                             Player.fileBlocks[i] = arrayBuffer.slice(begin, end);
                             begin = end;
                         }
@@ -462,8 +480,6 @@
             for (var i = index; i < indexLength && Player.fileBlocks[i]; i++) {
                 endIndex = i;
             }
-            //头部与尾部数据修复
-            Player.fixFileBlock(index,endIndex);
             for (var i = index; i < indexLength && Player.fileBlocks[i]; i++) {
                 length += Player.fileBlocks[i].byteLength;
             }
@@ -475,79 +491,103 @@
                 arr.set(new Uint8Array(Player.fileBlocks[i]), length);
                 length += Player.fileBlocks[i].byteLength;
             }
-            // console.log('joinend')
+            //删除头部与尾部损坏数据
+            result = Player.fixFileBlock(result);
+            //删除VBR数据帧(兼容ios)
+            if(MP3InfoAnalysis.hasVbrHeader(result)!=-1){
+                result = Player.fixFileBlock(result,2);
+            }
             return {
                 arrayBuffer: result,
                 beginIndex: index,
                 endIndex: endIndex
             }
         },
-        //数据块头部调整(修复数据块第一帧)
-        fixFileBlock: function(beginIndex, endIndex){
+        //根据索引号，找到实际的字节位置
+        getRangeBeginByIndex: function(index){
+            var begin = 0;
+            var mp3Info = MP3InfoAnalysis.mp3Info;
+            if(mp3Info.toc){
+                if(index >= indexSize){
+                    begin = mp3Info.fileSize;
+                }else{
+                    begin = ((mp3Info.toc[index] / 256 * mp3Info.totalSize) >> 0) + mp3Info.headerLength;
+                }
+                
+            }else{
+                begin = (mp3Info.frameSize * index + mp3Info.headerLength) >> 0;
+            }
+            if(begin > mp3Info.fileSize){
+                begin = mp3Info.fileSize
+            }
+            return begin;
+        },
+        //删除数据块头尾损坏数据
+        fixFileBlock: function(arrayBuffer,beginIndex){
+            beginIndex = beginIndex || 0;
 
-            delExtraUint8Array(beginIndex);
-            addDefectUint8Array(endIndex);
+            var begeinExtraLength = getExtraLength(arrayBuffer);
+            var endExtraLength = getExtraLength(arrayBuffer);
+            var result = arrayBuffer;
+            
+            if(begeinExtraLength){
+                result = arrayBuffer.slice(begeinExtraLength)
+            }
+            if(endExtraLength){
+                result = result.slice(0,result.byteLength-endExtraLength);
+            }
+            return result;
 
-            //获取数据块头部多余的数据长度(字节)
-            function getExtraLength(index){
+            //获取数据块头部或尾部多余的数据长度(字节)
+            function getExtraLength(arrayBuffer,reverse){
                 var i = 0;
-                var count = 100;
+                var count = 200;
                 var bufferStr = '';
-                var fileBlock = Player.fileBlocks[index];
-                var uint8Array = new Uint8Array(fileBlock);
-                if(!fileBlock){
-                    return 0;
-                }
-                while(true){
-                    for(; i<count && i<uint8Array.length; i++){
-                        if (uint8Array[i] <= 15) {
-                            bufferStr += '0' + uint8Array[i].toString(16);
-                        } else {
-                            bufferStr += uint8Array[i].toString(16);
+                var uint8Array = new Uint8Array(arrayBuffer);
+                if(!reverse){
+                    i = beginIndex*2;
+                    while(true){
+                        for(; i<count && i<uint8Array.length; i++){
+                            if (uint8Array[i] <= 15) {
+                                bufferStr += '0' + uint8Array[i].toString(16);
+                            } else {
+                                bufferStr += uint8Array[i].toString(16);
+                            }
                         }
+                        bufferStr = bufferStr.toUpperCase();
+                        if(bufferStr.indexOf(MP3InfoAnalysis.mp3Info.frameHeaderFlag)!=-1){
+                            return bufferStr.indexOf(MP3InfoAnalysis.mp3Info.frameHeaderFlag)/2+beginIndex;
+                        }
+                        if(i>=uint8Array.length){
+                            return 0;
+                        }
+                        count+=200;
                     }
-                    bufferStr = bufferStr.toUpperCase();
-                    if(bufferStr.indexOf(Player.mp3Info.frameHeaderFlag)!=-1){
-                        return bufferStr.indexOf(Player.mp3Info.frameHeaderFlag)/2;
+                }else{
+                    i = uint8Array.length-1;
+                    count = uint8Array.length-200;
+                    while(true){
+                        for(; i>count && i>0; i--){
+                            if (uint8Array[i] <= 15) {
+                                bufferStr = '0' + uint8Array[i].toString(16) + bufferStr;
+                            } else {
+                                bufferStr = uint8Array[i].toString(16) + bufferStr;
+                            }
+                        }
+                        bufferStr = bufferStr.toUpperCase();
+                        if(bufferStr.indexOf(MP3InfoAnalysis.mp3Info.frameHeaderFlag)!=-1){
+                            return bufferStr.length/2 - bufferStr.indexOf(MP3InfoAnalysis.mp3Info.frameHeaderFlag)/2;
+                        }
+                        if(i==0){
+                            return 0;
+                        }
+                        count-=200;
                     }
-                    if(i>=uint8Array.length){
-                        return 0;
-                    }
-                    count*=2;
                 }
             }
-            //获取数据块头部多余数据
-            function delExtraUint8Array(index){
-                var fileBlock = Player.fileBlocks[index];
-                var length = getExtraLength(index);
-                var result = false;
-                var t = new Uint8Array(Player.fileBlocks[index])
-                if(length>0){
-                    result = fileBlock.slice(0,length);
-                    Player.fileBlocks[index] = fileBlock.slice(length);
-                    Player.fileBlocks[index].deledData = result; //记录头部删除的多余数据
-                }
-                return result;
-            }
-            //数据块尾部添加数据块最后一帧缺失的数据
-            function addDefectUint8Array(index){
-                var nextBlock = Player.fileBlocks[index+1];
-                var arrayBuffer = Player.fileBlocks[index];
-                var extraBufferArray = nextBlock && (nextBlock.deledData || delExtraUint8Array(index+1));
-                var extraUint8Array = null;
-                var result = null;
-                var dataArr = null;
-                if(!extraBufferArray){
-                    return arrayBuffer;
-                }
-                extraUint8Array = new Uint8Array(extraBufferArray);
-                result = new ArrayBuffer(arrayBuffer.byteLength+extraUint8Array.length);
-                dataArr = new Uint8Array(result);
-                dataArr.set(extraUint8Array,arrayBuffer.byteLength);
-                result.deledData = Player.fileBlocks[index].deledData;
-                Player.fileBlocks[index] = result;
-                return result;
-            }
+
+
+           
         },
         //跳转某个索引
         seek: function(index) {
