@@ -3,7 +3,7 @@
     var url = ''; //音频链接
     var decrypt = function() {}; //解密函数
     var iosClicked = false;
-    var isIos =  navigator.userAgent.indexOf('iPhone')>-1;
+    var isIos = navigator.userAgent.indexOf('iPhone') > -1;
     Array.prototype.indexOf = function(item) {
         for (var i = 0; i < this.length; i++) {
             if (this[i] == item) {
@@ -96,12 +96,12 @@
                 }
             }
             bufferStr = bufferStr.toUpperCase();
-            mp3Info.frameHeaderFlag = bufferStr.substring(0,4); //数据帧开始标识
+            mp3Info.frameHeaderFlag = bufferStr.substring(0, 4); //数据帧开始标识
             headerFlag = MP3InfoAnalysis.hasVbrHeader(arrayBuffer);
             if (headerFlag != -1) { //存在Info头或者Xing头
                 vbrDataBuffer = arrayBuffer.slice(headerFlag / 2);
                 return getInfo(vbrDataBuffer);
-            } else{ //纯CBR编码
+            } else { //纯CBR编码
                 var frameSize = MP3InfoAnalysis.getFrameSize(arrayBuffer);
                 var totalTime = (mp3Info.fileSize - mp3Info.headerLength) / samplingRate;
                 return {
@@ -162,7 +162,7 @@
             }
         },
         //是否存在Info头或者Xing头
-        hasVbrHeader: function(arrayBuffer){
+        hasVbrHeader: function(arrayBuffer) {
             var bufferStr = '';
             var uint8Array = new Uint8Array(arrayBuffer);
             //转换成16进制码
@@ -176,7 +176,7 @@
             bufferStr = bufferStr.toUpperCase();
             if (bufferStr.indexOf('496E666F') != -1) { //存在Info头
                 return bufferStr.indexOf('496E666F');
-            }else if(bufferStr.indexOf('58696E67') != -1){ //存在Xing头
+            } else if (bufferStr.indexOf('58696E67') != -1) { //存在Xing头
                 return bufferStr.indexOf('58696E67');
             }
             return -1;
@@ -250,7 +250,7 @@
             Player.decoding = false; //解码中
             Player.loadingIndexMap = []; //正在加载中的索引，防止重复加载相同的数据
             Player.loadingPromise = null; //数据加载异步对象集合
-            Player.decodeAudioData(2, Player.cacheFrameSize, true);
+            Player.decodeAudioData(0, Player.cacheFrameSize, true);
         },
         //解码
         decodeAudioData: function(index, minSize, negative) {
@@ -292,10 +292,10 @@
                                 Player.decodeAudioData(audioBufferSouceNode.beginIndex, minSize * 2);
                             }, buffer.duration * 1000 / 2);
                         }
-                        if(isIos && iosClicked || !isIos){
-                            if(audioBufferSouceNode.start){
+                        if (isIos && iosClicked || !isIos) {
+                            if (audioBufferSouceNode.start) {
                                 audioBufferSouceNode.start(0);
-                            }else{
+                            } else {
                                 audioBufferSouceNode.noteOn(0);
                             }
                         }
@@ -341,10 +341,10 @@
                         } else {
                             if (Player.souceNodeQueue.length > 0) {
                                 var souceNode = Player.souceNodeQueue.shift();
-                                if(souceNode.start){
+                                if (souceNode.start) {
                                     souceNode.start(0, startTime);
-                                }else{
-                                    audioBufferSouceNode.noteOn(0,startTime);
+                                } else {
+                                    audioBufferSouceNode.noteOn(0, startTime);
                                 }
                                 if (souceNode.endIndex + 1 < indexSize) {
                                     Player.decodeAudioData(souceNode.beginIndex, minSize * 2);
@@ -379,7 +379,7 @@
                 if (!Player.fileBlocks[i]) {
                     cached = false;
                     beginIndex = i;
-                    minSize = minSize - (beginIndex-index);
+                    minSize = minSize - (beginIndex - index);
                     break;
                 }
             }
@@ -388,27 +388,26 @@
                 var arr = null;
                 var result = null;
                 var length = 0;
-                result = Player.joinNextCachedFileBlock(index, minSize, negative); 
+                result = Player.joinNextCachedFileBlock(index, minSize, negative);
                 return new Promise(function(resolve) {
                     resolve(result);
                 })
             }
             //防止尾部加载重复数据
             var i = beginIndex + minSize - 1;
-            i = i>= indexSize ? indexSize - 1 : i;
+            i = i >= indexSize ? indexSize - 1 : i;
             for (; i > beginIndex; i--) {
                 if (Player.fileBlocks[i]) {
                     minSize--;
-                }else{
+                } else {
                     break;
                 }
             }
-            if(beginIndex+minSize > indexSize){
-                minSize = indexSize-beginIndex;
+            if (beginIndex + minSize > indexSize) {
+                minSize = indexSize - beginIndex;
             }
-
             begin = Player.getRangeBeginByIndex(beginIndex);
-            end = Player.getRangeBeginByIndex(beginIndex+minSize);
+            end = Player.getRangeBeginByIndex(beginIndex + minSize);
             Player.loadingIndexMap[index] = {
                 index: index,
                 size: originMinSize
@@ -427,7 +426,7 @@
                     //缓存数据块
                     for (var i = beginIndex; i < beginIndex + minSize && i < indexSize; i++) {
                         if (MP3InfoAnalysis.mp3Info.toc) { //VBR编码模式
-                            end = (begin + (Player.getRangeBeginByIndex(i+1) - Player.getRangeBeginByIndex(i))) >> 0;
+                            end = (begin + (Player.getRangeBeginByIndex(i + 1) - Player.getRangeBeginByIndex(i))) >> 0;
                             Player.fileBlocks[i] = arrayBuffer.slice(begin, end);
                             begin = end;
                         } else { //CBR编码模式
@@ -437,11 +436,11 @@
                         }
                     }
                     resolve(Player.joinNextCachedFileBlock(index, originMinSize, negative));
-                    if(!Player.stopNextLoad){
-                        setTimeout(function(){
+                    if (!Player.stopNextLoad) {
+                        setTimeout(function() {
                             Player.stopNextLoad = false;
                             Player.loadFrame(index + originMinSize, originMinSize);
-                        },0)
+                        }, 0)
                     }
                     Player.loadingPromise = null;
                     delete Player.loadingIndexMap[index];
@@ -486,7 +485,6 @@
             result = new ArrayBuffer(length);
             arr = new Uint8Array(result);
             length = 0;
-            
             for (i = index; i <= endIndex; i++) {
                 arr.set(new Uint8Array(Player.fileBlocks[i]), length);
                 length += Player.fileBlocks[i].byteLength;
@@ -494,8 +492,8 @@
             //删除头部与尾部损坏数据
             result = Player.fixFileBlock(result);
             //删除VBR数据帧(兼容ios)
-            if(MP3InfoAnalysis.hasVbrHeader(result)!=-1){
-                result = Player.fixFileBlock(result,2);
+            if (MP3InfoAnalysis.hasVbrHeader(result) != -1) {
+                result = Player.fixFileBlock(result, 2);
             }
             return {
                 arrayBuffer: result,
@@ -504,50 +502,46 @@
             }
         },
         //根据索引号，找到实际的字节位置
-        getRangeBeginByIndex: function(index){
+        getRangeBeginByIndex: function(index) {
             var begin = 0;
             var mp3Info = MP3InfoAnalysis.mp3Info;
-            if(mp3Info.toc){
-                if(index >= indexSize){
+            if (mp3Info.toc) {
+                if (index >= indexSize) {
                     begin = mp3Info.fileSize;
-                }else{
+                } else {
                     begin = ((mp3Info.toc[index] / 256 * mp3Info.totalSize) >> 0) + mp3Info.headerLength;
                 }
-                
-            }else{
+            } else {
                 begin = (mp3Info.frameSize * index + mp3Info.headerLength) >> 0;
             }
-            if(begin > mp3Info.fileSize){
+            if (begin > mp3Info.fileSize) {
                 begin = mp3Info.fileSize
             }
             return begin;
         },
         //删除数据块头尾损坏数据
-        fixFileBlock: function(arrayBuffer,beginIndex){
+        fixFileBlock: function(arrayBuffer, beginIndex) {
             beginIndex = beginIndex || 0;
-
             var begeinExtraLength = getExtraLength(arrayBuffer);
             var endExtraLength = getExtraLength(arrayBuffer);
             var result = arrayBuffer;
-            
-            if(begeinExtraLength){
+            if (begeinExtraLength) {
                 result = arrayBuffer.slice(begeinExtraLength)
             }
-            if(endExtraLength){
-                result = result.slice(0,result.byteLength-endExtraLength);
+            if (endExtraLength) {
+                result = result.slice(0, result.byteLength - endExtraLength);
             }
             return result;
-
             //获取数据块头部或尾部多余的数据长度(字节)
-            function getExtraLength(arrayBuffer,reverse){
+            function getExtraLength(arrayBuffer, reverse) {
                 var i = 0;
                 var count = 200;
                 var bufferStr = '';
                 var uint8Array = new Uint8Array(arrayBuffer);
-                if(!reverse){
-                    i = beginIndex*2;
-                    while(true){
-                        for(; i<count && i<uint8Array.length; i++){
+                if (!reverse) {
+                    i = beginIndex * 2;
+                    while (true) {
+                        for (; i < count && i < uint8Array.length; i++) {
                             if (uint8Array[i] <= 15) {
                                 bufferStr += '0' + uint8Array[i].toString(16);
                             } else {
@@ -555,19 +549,19 @@
                             }
                         }
                         bufferStr = bufferStr.toUpperCase();
-                        if(bufferStr.indexOf(MP3InfoAnalysis.mp3Info.frameHeaderFlag)!=-1){
-                            return bufferStr.indexOf(MP3InfoAnalysis.mp3Info.frameHeaderFlag)/2+beginIndex;
+                        if (bufferStr.indexOf(MP3InfoAnalysis.mp3Info.frameHeaderFlag) != -1) {
+                            return bufferStr.indexOf(MP3InfoAnalysis.mp3Info.frameHeaderFlag) / 2 + beginIndex;
                         }
-                        if(i>=uint8Array.length){
+                        if (i >= uint8Array.length) {
                             return 0;
                         }
-                        count+=200;
+                        count += 200;
                     }
-                }else{
-                    i = uint8Array.length-1;
-                    count = uint8Array.length-200;
-                    while(true){
-                        for(; i>count && i>0; i--){
+                } else {
+                    i = uint8Array.length - 1;
+                    count = uint8Array.length - 200;
+                    while (true) {
+                        for (; i > count && i > 0; i--) {
                             if (uint8Array[i] <= 15) {
                                 bufferStr = '0' + uint8Array[i].toString(16) + bufferStr;
                             } else {
@@ -575,19 +569,16 @@
                             }
                         }
                         bufferStr = bufferStr.toUpperCase();
-                        if(bufferStr.indexOf(MP3InfoAnalysis.mp3Info.frameHeaderFlag)!=-1){
-                            return bufferStr.length/2 - bufferStr.indexOf(MP3InfoAnalysis.mp3Info.frameHeaderFlag)/2;
+                        if (bufferStr.indexOf(MP3InfoAnalysis.mp3Info.frameHeaderFlag) != -1) {
+                            return bufferStr.length / 2 - bufferStr.indexOf(MP3InfoAnalysis.mp3Info.frameHeaderFlag) / 2;
                         }
-                        if(i==0){
+                        if (i == 0) {
                             return 0;
                         }
-                        count-=200;
+                        count -= 200;
                     }
                 }
             }
-
-
-           
         },
         //跳转某个索引
         seek: function(index) {
@@ -610,24 +601,23 @@
             decrypt = opt.decrypt;
         }
         MP3InfoAnalysis.init().then(Player.init);
-        this.play = function(){
+        this.play = function() {
             var self = this;
             clearTimeout(playTimoutId);
-            if(Player.decoding||Player.loading){
-                playTimoutId = setTimeout(function(){
+            if (Player.decoding || Player.loading) {
+                playTimoutId = setTimeout(function() {
                     self.play();
-                },100);
+                }, 100);
             }
             var nowSouceNode = Player.nowSouceNode;
-            if(nowSouceNode){
-                if(nowSouceNode.start){
+            if (nowSouceNode) {
+                if (nowSouceNode.start) {
                     nowSouceNode.start(0);
-                }else{
+                } else {
                     nowSouceNode.noteOn(0);
                 }
                 iosClicked = true;
             }
-            
         }
         this.pause = function() {
             if (Player.audioContext) {
