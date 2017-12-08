@@ -304,27 +304,7 @@
                         startPlayInterval(buffer);
                     }
 
-                    function startPlayInterval(buffer) {
-                        // var stopingTime = 0; //暂停时长
-                        // clearInterval(Player.playIntervalId);
-                        // beginTime = Player.audioContext.currentTime;
-                        // Player.playIntervalId = setInterval(function() {
-                        //     if (Player.audioContext.state != 'running') {
-                        //         stopingTime += 20;
-                        //         return;
-                        //     }
-                        //     //该分区播放完前500ms，开始播接下来的音频数据
-                        //     if ((Player.audioContext.currentTime - beginTime) * 1000 + 500 >= buffer.duration * 1000) {
-                        //         if (Player.souceNodeQueue.length > 0) {
-                        //             var startTime = Player.audioContext.currentTime - beginTime - stopingTime;
-                        //             //计算时延
-                        //             startTime = startTime > buffer.duration ? buffer.duration : startTime;
-                        //             finish(Player.nowSouceNode, startTime);
-                        //         }
-                        //     }
-                        // }, 20);
-                    }
-                    //兼容移动端黑屏后interVal计时器停止的问题
+                    //播放完成后播放下一段音频
                     audioBufferSouceNode.onended = function() {
                         finish(audioBufferSouceNode, audioBufferSouceNode.buffer.duration);
                     }
@@ -341,6 +321,7 @@
                         } else {
                             if (Player.souceNodeQueue.length > 0) {
                                 var souceNode = Player.souceNodeQueue.shift();
+                                console.log('continue')
                                 if (souceNode.start) {
                                     souceNode.start(0, startTime);
                                 } else {
@@ -489,12 +470,15 @@
                 arr.set(new Uint8Array(Player.fileBlocks[i]), length);
                 length += Player.fileBlocks[i].byteLength;
             }
+            var tmp = new Uint8Array(result);
             //删除头部与尾部损坏数据
             result = Player.fixFileBlock(result);
+            var tmp1 = new Uint8Array(result);
             //删除VBR数据帧(兼容ios)
             if (MP3InfoAnalysis.hasVbrHeader(result) != -1) {
                 result = Player.fixFileBlock(result, 2);
             }
+            var tmp2 = new Uint8Array(result);
             return {
                 arrayBuffer: result,
                 beginIndex: index,
@@ -523,7 +507,7 @@
         fixFileBlock: function(arrayBuffer, beginIndex) {
             beginIndex = beginIndex || 0;
             var begeinExtraLength = getExtraLength(arrayBuffer);
-            var endExtraLength = getExtraLength(arrayBuffer);
+            var endExtraLength = getExtraLength(arrayBuffer,true);
             var result = arrayBuffer;
             if (begeinExtraLength) {
                 result = arrayBuffer.slice(begeinExtraLength)
@@ -539,7 +523,6 @@
                 var bufferStr = '';
                 var uint8Array = new Uint8Array(arrayBuffer);
                 if (!reverse) {
-                    i = beginIndex * 2;
                     while (true) {
                         for (; i < count && i < uint8Array.length; i++) {
                             if (uint8Array[i] <= 15) {
@@ -549,8 +532,8 @@
                             }
                         }
                         bufferStr = bufferStr.toUpperCase();
-                        if (bufferStr.indexOf(MP3InfoAnalysis.mp3Info.frameHeaderFlag) != -1) {
-                            return bufferStr.indexOf(MP3InfoAnalysis.mp3Info.frameHeaderFlag) / 2 + beginIndex;
+                        if (bufferStr.indexOf(MP3InfoAnalysis.mp3Info.frameHeaderFlag,beginIndex * 2) != -1) {
+                            return bufferStr.indexOf(MP3InfoAnalysis.mp3Info.frameHeaderFlag) / 2;
                         }
                         if (i >= uint8Array.length) {
                             return 0;
