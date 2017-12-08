@@ -349,12 +349,16 @@
             if (Player.loadingPromise) { //有与正要加载的索引范围相交的索引区正在加载，等待其加载完成再加载
                 Player.stopNextLoad = negative;
                 return Player.loadingPromise.then(function() {
+                    Player.stopNextLoad = false;
                     return Player.loadFrame(index, minSize, negative);
                 })
             }
             index = index >= indexSize ? indexSize - 1 : index;
+            if(index + minSize > indexSize){
+                minSize = indexSize - index;
+            }
             //防止头部加载重复数据
-            for (var i = index; i < index + minSize && i < indexSize; i++) {
+            for (var i = index; i < index + minSize; i++) {
                 if (!Player.fileBlocks[i]) {
                     cached = false;
                     beginIndex = i;
@@ -391,7 +395,7 @@
                 index: index,
                 size: originMinSize
             };
-            // console.log('loading:',beginIndex,minSize)
+            console.log('loading:',beginIndex,beginIndex+minSize-1)
             var promise = new Promise(function(resolve, reject) {
                 var request = new XMLHttpRequest();
                 request.open('GET', url, true);
@@ -417,13 +421,12 @@
                     resolve(Player.joinNextCachedFileBlock(index, originMinSize, negative));
                     if (!Player.stopNextLoad) {
                         setTimeout(function() {
-                            Player.stopNextLoad = false;
                             Player.loadFrame(index + originMinSize, originMinSize);
                         }, 0)
                     }
                     Player.loadingPromise = null;
                     delete Player.loadingIndexMap[index];
-                    // console.log('load完成:',beginIndex,minSize)
+                    console.log('load完成:',beginIndex,beginIndex+minSize-1)
                 }
                 request.setRequestHeader("Range", "bytes=" + begin + '-' + (end - 1));
                 request.send();
