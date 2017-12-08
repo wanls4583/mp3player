@@ -242,7 +242,6 @@
             Player.fileBlocks = new Array(100); //音频数据分区
             Player.cacheFrameSize = 10; //每次加载的分区数
             Player.indexSize = 100; //索引个数
-            Player.playIntervalId = null; //播放计时器
             Player.hasPlayed = false; //是否已经开始播放
             Player.souceNodeQueue = []; //音频资源节点队列
             Player.nowSouceNode = null; //正在播放的资源节点
@@ -312,7 +311,6 @@
                         audioBufferSouceNode.finished = true;
                         audioBufferSouceNode.disconnect();
                         if (audioBufferSouceNode.endIndex == indexSize - 1) {
-                            clearInterval(Player.playIntervalId);
                             Player.audioContext.suspend();
                             //释放资源
                             Player.souceNodeQueue = [];
@@ -336,6 +334,8 @@
                 }, function(e) { //这个是解码失败会调用的函数
                     console.log(index, "解码失败");
                 });
+            },function(){
+                Player.loading = false;
             });
         },
         //获取数据帧
@@ -351,6 +351,8 @@
                 return Player.loadingPromise.then(function() {
                     Player.stopNextLoad = false;
                     return Player.loadFrame(index, minSize, negative);
+                },function(){
+                    Player.stopNextLoad = false;
                 })
             }
             index = index >= indexSize ? indexSize - 1 : index;
@@ -400,6 +402,10 @@
                 var request = new XMLHttpRequest();
                 request.open('GET', url, true);
                 request.responseType = 'arraybuffer';
+                setTimeout(function(){
+                    promise.resolve = resolve;
+                    promise.reject = reject;
+                },0);
                 request.onload = function() {
                     var arrayBuffer = request.response;
                     var begin = 0;
@@ -418,15 +424,16 @@
                             begin = end;
                         }
                     }
+                    Player.loadingPromise = null;
+                    delete Player.loadingIndexMap[index];
+                    console.log('load完成:',beginIndex,beginIndex+minSize-1);
+
                     resolve(Player.joinNextCachedFileBlock(index, originMinSize, negative));
                     if (!Player.stopNextLoad) {
                         setTimeout(function() {
                             Player.loadFrame(index + originMinSize, originMinSize);
                         }, 0)
                     }
-                    Player.loadingPromise = null;
-                    delete Player.loadingIndexMap[index];
-                    console.log('load完成:',beginIndex,beginIndex+minSize-1)
                 }
                 request.setRequestHeader("Range", "bytes=" + begin + '-' + (end - 1));
                 request.send();
@@ -567,14 +574,22 @@
         },
         //跳转某个索引
         seek: function(index) {
-            clearInterval(Player.playIntervalId);
+            Player.reset();
+            setTimeout(function(){
+                Player.decodeAudioData(index, Player.cacheFrameSize, true);
+            },0)
+        },
+        //重置播放器
+        reset: function(){
             Player.hasPlayed = false;
+            Player.souceNodeQueue = [];
             if (Player.nowSouceNode) {
                 Player.nowSouceNode.disconnect();
                 Player.nowSouceNode = null;
             }
-            Player.souceNodeQueue = [];
-            Player.decodeAudioData(index, Player.cacheFrameSize, true);
+            if(Player.loadingPromise){
+                Player.loadingPromise.reject();
+            }
         }
     }
     window.seek = Player.seek;
@@ -588,21 +603,29 @@
         MP3InfoAnalysis.init().then(Player.init);
         this.play = function() {
             var self = this;
+            var nowSouceNode = Player.nowSouceNode;
+            var audioContext = Player.audioContext
+
             clearTimeout(playTimoutId);
+
             if (Player.decoding || Player.loading) {
                 playTimoutId = setTimeout(function() {
                     self.play();
                 }, 100);
             }
-            var nowSouceNode = Player.nowSouceNode;
-            if (nowSouceNode) {
+            if (nowSouceNode && !iosClicked) {
                 if (nowSouceNode.start) {
                     nowSouceNode.start(0);
                 } else {
                     nowSouceNode.noteOn(0);
                 }
                 iosClicked = true;
+            } else if(audioContext.state == 'suspend'){
+                audioContext.resume();
+            } else if(audioContext.state == 'closed'){
+                Player.seek(0);
             }
+            
         }
         this.pause = function() {
             if (Player.audioContext) {
