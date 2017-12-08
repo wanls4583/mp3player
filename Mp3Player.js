@@ -12,6 +12,13 @@
         }
         return -1;
     }
+    // Promise.prototype.finally = function(cb){
+    //     return this.then(function(value){
+    //         Promise.resolve(cb()).then(function(){return value});
+    //     },function(e){
+    //         Promise.resolve(cb()).then(function(){return e});
+    //     })
+    // }
     //MP3播放信息解析对象
     var MP3InfoAnalysis = {
         init: function() {
@@ -254,14 +261,21 @@
         //解码
         decodeAudioData: function(index, minSize, negative) {
             if (index >= indexSize) {
+                Player.loading = false;
+                Player.decoding = false;
                 return;
             }
             if (Player.audioContext && Player.audioContext.state == 'running' && (!Player.nowSouceNode || Player.nowSouceNode && Player.nowSouceNode.finished)) {
                 //加载中
                 Player.loading = true;
             }
+            var souceNodeQueue = Player.souceNodeQueue;
             Player.loadFrame(index, minSize, negative).then(function(result) {
                 Player.loading = false;
+                if(!result){ //seek时强制停止
+                    Player.decoding = false;
+                    return;
+                }
                 if (!Player.audioContext) {
                     Player.audioContext = new Player.AudioContext();
                     Player.audioContext.onstatechange = function() {
@@ -276,12 +290,16 @@
                 }
                 // console.log('解码:'+result.beginIndex+','+result.endIndex)
                 Player.audioContext.decodeAudioData(result.arrayBuffer, function(buffer) { //解码成功则调用此函数，参数buffer为解码后得到的结果
-                    var audioBufferSouceNode = Player.audioContext.createBufferSource();
+                    var audioBufferSouceNode = null;
+                    if(souceNodeQueue!=Player.souceNodeQueue){ //防止seek时，之前未完成的异步解码对新队列的影响
+                        return ;
+                    }
+                    audioBufferSouceNode = Player.audioContext.createBufferSource();
                     audioBufferSouceNode.connect(Player.audioContext.destination);
                     audioBufferSouceNode.buffer = buffer;
                     audioBufferSouceNode.beginIndex = result.beginIndex;
                     audioBufferSouceNode.endIndex = result.endIndex;
-                    Player.souceNodeQueue.push(audioBufferSouceNode);
+                    souceNodeQueue.push(audioBufferSouceNode);
                     Player.decoding = false;
                     // console.log('解码完成:'+result.beginIndex+','+result.endIndex,'duration:',buffer.duration);
                     if (!Player.hasPlayed) {
@@ -297,8 +315,9 @@
                             } else {
                                 audioBufferSouceNode.noteOn(0);
                             }
+                            console.log('play1:',audioBufferSouceNode.beginIndex);
                         }
-                        Player.souceNodeQueue.shift();
+                        souceNodeQueue.shift();
                         Player.nowSouceNode = audioBufferSouceNode;
                     }
 
@@ -312,18 +331,16 @@
                         audioBufferSouceNode.disconnect();
                         if (audioBufferSouceNode.endIndex == indexSize - 1) {
                             Player.audioContext.suspend();
-                            //释放资源
-                            Player.souceNodeQueue = [];
-                            playedSouceNodeQueue = [];
                         } else {
-                            if (Player.souceNodeQueue.length > 0) {
-                                var souceNode = Player.souceNodeQueue.shift();
+                            if (souceNodeQueue.length > 0) {
+                                var souceNode = souceNodeQueue.shift();
                                 console.log('continue')
                                 if (souceNode.start) {
                                     souceNode.start(0, startTime);
                                 } else {
-                                    audioBufferSouceNode.noteOn(0, startTime);
+                                    souceNode.noteOn(0, startTime);
                                 }
+                                console.log('play2:',souceNode.beginIndex);
                                 if (souceNode.endIndex + 1 < indexSize) {
                                     Player.decodeAudioData(souceNode.beginIndex, minSize * 2);
                                 }
@@ -334,8 +351,6 @@
                 }, function(e) { //这个是解码失败会调用的函数
                     console.log(index, "解码失败");
                 });
-            },function(){
-                Player.loading = false;
             });
         },
         //获取数据帧
@@ -346,15 +361,7 @@
             var beginIndex = index; //避免网络加载重复数据
             var endIndex = 0;
             var originMinSize = minSize;
-            if (Player.loadingPromise) { //有与正要加载的索引范围相交的索引区正在加载，等待其加载完成再加载
-                Player.stopNextLoad = negative;
-                return Player.loadingPromise.then(function() {
-                    Player.stopNextLoad = false;
-                    return Player.loadFrame(index, minSize, negative);
-                },function(){
-                    Player.stopNextLoad = false;
-                })
-            }
+            
             index = index >= indexSize ? indexSize - 1 : index;
             if(index + minSize > indexSize){
                 minSize = indexSize - index;
@@ -378,6 +385,14 @@
                     resolve(result);
                 })
             }
+            //当前有数据正在加载则等待
+            if (Player.loadingPromise) {
+                Player.stopNextLoad = negative;
+                return Player.loadingPromise.then(function() {
+                    Player.stopNextLoad = false;
+                    return Player.loadFrame(index, minSize);
+                })
+            }
             //防止尾部加载重复数据
             var i = beginIndex + minSize - 1;
             i = i >= indexSize ? indexSize - 1 : i;
@@ -393,9 +408,9 @@
             }
             begin = Player.getRangeBeginByIndex(beginIndex);
             end = Player.getRangeBeginByIndex(beginIndex + minSize);
-            Player.loadingIndexMap[index] = {
-                index: index,
-                size: originMinSize
+            Player.loadingIndex = {
+                beginIndex: beginIndex,
+                endIndex: beginIndex + minSize - 1
             };
             console.log('loading:',beginIndex,beginIndex+minSize-1)
             var promise = new Promise(function(resolve, reject) {
@@ -425,7 +440,7 @@
                         }
                     }
                     Player.loadingPromise = null;
-                    delete Player.loadingIndexMap[index];
+                    Player.loadingIndex = null;
                     console.log('load完成:',beginIndex,beginIndex+minSize-1);
 
                     resolve(Player.joinNextCachedFileBlock(index, originMinSize, negative));
@@ -441,17 +456,6 @@
             Player.loadingPromise = promise;
             return promise;
         },
-        //检查将要加载的数据索引区范围和正在加载的数据索引区范围是否有相交部分(放弃，ajax多线程加载大数据会返回net::ERR_CONNECTION_RESET)
-        // checkIndexArr: function(index, size) {
-        //     var loadingIndexMap = Player.loadingIndexMap;
-        //     for (var key in loadingIndexMap) {
-        //         var obj = loadingIndexMap[key];
-        //         if ((obj.index <= index && obj.index + obj.size - 1 >= index) || (obj.index <= index + size - 1 && obj.index + obj.size - 1 >= index + size - 1)) {
-        //             return key;
-        //         }
-        //     }
-        //     return -1;
-        // },
         //合并index索引之后所有连续的已经缓存过的分区
         joinNextCachedFileBlock: function(index, minSize, negative) {
             var length = 0;
@@ -574,21 +578,29 @@
         },
         //跳转某个索引
         seek: function(index) {
-            Player.reset();
-            setTimeout(function(){
-                Player.decodeAudioData(index, Player.cacheFrameSize, true);
-            },0)
-        },
-        //重置播放器
-        reset: function(){
             Player.hasPlayed = false;
             Player.souceNodeQueue = [];
             if (Player.nowSouceNode) {
                 Player.nowSouceNode.disconnect();
                 Player.nowSouceNode = null;
             }
-            if(Player.loadingPromise){
-                Player.loadingPromise.reject();
+            if(Player.loadingIndex){ //是否有数据正在加载
+                var beginIndex = Player.loadingIndex.beginIndex;
+                var endIndex = Player.loadingIndex.endIndex;
+                //是否与真正加载的数据区域有重复
+                if(index>=beginIndex && index<=endIndex || 
+                    index+Player.cacheFrameSize-1>=beginIndex && index+Player.cacheFrameSize-1<=endIndex){
+                    Player.loadingPromise.then(function(){
+                        Player.decodeAudioData(index, Player.cacheFrameSize, true);
+                    });
+                }else{
+                    Player.loadingPromise.resolve(false);
+                    setTimeout(function(){ // 播放需要放在下一个宏队列内
+                        Player.decodeAudioData(index, Player.cacheFrameSize, true);
+                    },0)
+                }
+            }else{
+                Player.decodeAudioData(index, Player.cacheFrameSize, true);
             }
         }
     }
