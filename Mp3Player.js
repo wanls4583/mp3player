@@ -301,7 +301,6 @@
                         }
                         Player.souceNodeQueue.shift();
                         Player.nowSouceNode = audioBufferSouceNode;
-                        startPlayInterval(buffer);
                     }
 
                     //播放完成后播放下一段音频
@@ -331,7 +330,6 @@
                                     Player.decodeAudioData(souceNode.beginIndex, minSize * 2);
                                 }
                                 Player.nowSouceNode = souceNode;
-                                startPlayInterval(souceNode.buffer, souceNode);
                             }
                         }
                     }
@@ -470,15 +468,12 @@
                 arr.set(new Uint8Array(Player.fileBlocks[i]), length);
                 length += Player.fileBlocks[i].byteLength;
             }
-            var tmp = new Uint8Array(result);
             //删除头部与尾部损坏数据
             result = Player.fixFileBlock(result);
-            var tmp1 = new Uint8Array(result);
             //删除VBR数据帧(兼容ios)
             if (MP3InfoAnalysis.hasVbrHeader(result) != -1) {
-                result = Player.fixFileBlock(result, 2);
+                result = Player.fixFileBlock(result, 2, false, true);
             }
-            var tmp2 = new Uint8Array(result);
             return {
                 arrayBuffer: result,
                 beginIndex: index,
@@ -504,16 +499,20 @@
             return begin;
         },
         //删除数据块头尾损坏数据
-        fixFileBlock: function(arrayBuffer, beginIndex) {
+        fixFileBlock: function(arrayBuffer,beginIndex,excludeBegin,excludeEnd) {
             beginIndex = beginIndex || 0;
-            var begeinExtraLength = getExtraLength(arrayBuffer);
-            var endExtraLength = getExtraLength(arrayBuffer,true);
             var result = arrayBuffer;
-            if (begeinExtraLength) {
-                result = arrayBuffer.slice(begeinExtraLength)
+            if(!excludeBegin){
+                var begeinExtraLength = getExtraLength(arrayBuffer);
+                if (begeinExtraLength) {
+                    result = arrayBuffer.slice(begeinExtraLength)
+                }
             }
-            if (endExtraLength) {
-                result = result.slice(0, result.byteLength - endExtraLength);
+            if(!excludeEnd){
+                var endExtraLength = getExtraLength(arrayBuffer,true);
+                if (endExtraLength) {
+                    result = result.slice(0, result.byteLength - endExtraLength);
+                }
             }
             return result;
             //获取数据块头部或尾部多余的数据长度(字节)
@@ -532,8 +531,8 @@
                             }
                         }
                         bufferStr = bufferStr.toUpperCase();
-                        if (bufferStr.indexOf(MP3InfoAnalysis.mp3Info.frameHeaderFlag,beginIndex * 2) != -1) {
-                            return bufferStr.indexOf(MP3InfoAnalysis.mp3Info.frameHeaderFlag) / 2;
+                        if (bufferStr.indexOf(MP3InfoAnalysis.mp3Info.frameHeaderFlag,beginIndex*2) != -1) {
+                            return bufferStr.indexOf(MP3InfoAnalysis.mp3Info.frameHeaderFlag,beginIndex*2) / 2;
                         }
                         if (i >= uint8Array.length) {
                             return 0;
