@@ -14,7 +14,7 @@
     }
 
     function log() {
-        if (location.search.indexOf('debug')) {
+        if (location.search.indexOf('debug')>-1) {
             console.log.apply(this, arguments);
         }
     }
