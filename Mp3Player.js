@@ -452,8 +452,20 @@
                     Player.loadingPromise = null;
                     resolve(Player.joinNextCachedFileBlock(index, originMinSize, negative));
                 }
-                request.onerror = function(e) {
+                request.ontimeout = function(e) {
+                    Player.loadingPromise.then(function(){
+                        Player.loadFrame(index, minSize, negative);
+                    })
                     reject(e);
+                }
+                request.onerror = function(e) {
+                    Player.loadingPromise.then(function(){
+                        Player.loadFrame(index, minSize, negative);
+                    })
+                    reject(e);
+                }
+                request.onabort = function(e){
+                    reject('abort');
                 }
                 request.setRequestHeader("Range", "bytes=" + begin + '-' + (end - 1));
                 request.send();
@@ -599,9 +611,10 @@
                 // Player.loadingPromise.then(function() {
                 // Player.decodeAudioData(index, Player.cacheFrameSize, true, Player.souceNodeQueue)
                 // });
-                Player.loadingPromise = null;
+                Player.loadingPromise.then(function(){
+                    Player.decodeAudioData(index, Player.cacheFrameSize, true, Player.souceNodeQueue);
+                });
                 Player.request.abort(); //强制中断下载
-                Player.decodeAudioData(index, Player.cacheFrameSize, true, Player.souceNodeQueue);
             } else {
                 Player.decodeAudioData(index, Player.cacheFrameSize, true, Player.souceNodeQueue)
             }
