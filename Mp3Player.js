@@ -269,7 +269,7 @@
                 Player.loading = true;
             }
             return Player.loadFrame(index, minSize, negative).then(function(result) {
-                if (souceNodeQueue != Player.souceNodeQueue || !result) { //seek时强制停止
+                if (souceNodeQueue != Player.souceNodeQueue || !result) { //see时强制停止
                     Player.decoding = false;
                     Player.loading = false;
                     return false;
@@ -321,7 +321,7 @@
                             } else {
                                 souceNode.noteOn(0);
                             }
-                            log('play1:', souceNode.beginIndex);
+                            log('play1:', souceNode.beginIndex, souceNode.endIndex);
                         }
                         souceNodeQueue.shift();
                         Player.nowSouceNode = souceNode;
@@ -345,7 +345,7 @@
                                 } else {
                                     souceNode.noteOn(0, startTime);
                                 }
-                                log('play2:', souceNode.beginIndex);
+                                log('play2:', souceNode.beginIndex, souceNode.endIndex);
                                 if (souceNode.endIndex + 1 < indexSize) {
                                     clearTimeout(Player.decodeTimeoutId);
                                     Player.decodeTimeoutId = setTimeout(function() {
@@ -416,13 +416,9 @@
             }
             begin = Player.getRangeBeginByIndex(beginIndex);
             end = Player.getRangeBeginByIndex(beginIndex + minSize);
-            Player.loadingIndex = {
-                beginIndex: beginIndex,
-                endIndex: beginIndex + minSize - 1
-            };
             log('loading:', beginIndex, beginIndex + minSize - 1)
             var promise = new Promise(function(resolve, reject) {
-                var request = new XMLHttpRequest();
+                var request = Player.request = new XMLHttpRequest();
                 request.open('GET', url, true);
                 request.responseType = 'arraybuffer';
                 setTimeout(function() {
@@ -448,17 +444,23 @@
                         }
                     }
                     log('load完成:', beginIndex, beginIndex + minSize - 1);
-                    if (!Player.loadingPromise.stopNextLoad) {
+                    if (!Player.loadingPromise.stopNextLoad) { //seek后应该从新的位置加载后面的数据
                         setTimeout(function() {
                             Player.loadFrame(index + originMinSize, originMinSize);
                         }, 0)
                     }
                     Player.loadingPromise = null;
-                    Player.loadingIndex = null;
                     resolve(Player.joinNextCachedFileBlock(index, originMinSize, negative));
+                }
+                request.onerror = function(e) {
+                    reject(e);
                 }
                 request.setRequestHeader("Range", "bytes=" + begin + '-' + (end - 1));
                 request.send();
+            }).catch(function(e) {
+                console.log(e);
+                Player.loadingPromise = null;
+                return false;
             });
             Player.loadingPromise = promise;
             return promise;
@@ -593,10 +595,13 @@
                 Player.nowSouceNode = null;
             }
             if (Player.loadingPromise) { //是否有数据正在加载
-                Player.loadingPromise.stopNextLoad = true
-                Player.loadingPromise.then(function() {
-                    Player.decodeAudioData(index, Player.cacheFrameSize, true, Player.souceNodeQueue)
-                });
+                // Player.loadingPromise.stopNextLoad = true
+                // Player.loadingPromise.then(function() {
+                // Player.decodeAudioData(index, Player.cacheFrameSize, true, Player.souceNodeQueue)
+                // });
+                Player.loadingPromise = null;
+                Player.request.abort(); //强制中断下载
+                Player.decodeAudioData(index, Player.cacheFrameSize, true, Player.souceNodeQueue);
             } else {
                 Player.decodeAudioData(index, Player.cacheFrameSize, true, Player.souceNodeQueue)
             }
