@@ -18,6 +18,16 @@
             console.log.apply(this, arguments);
         }
     }
+    function testLog() {
+        if (location.search.indexOf('test')>-1) {
+            console.log.apply(this, arguments);
+        }
+    }
+    function ifTest(){
+        if (location.search.indexOf('test')>-1) {
+            return true;
+        }
+    }
     //MP3播放信息解析对象
     var MP3InfoAnalysis = {
         init: function() {
@@ -503,11 +513,24 @@
                 arr.set(new Uint8Array(Player.fileBlocks[i]), length);
                 length += Player.fileBlocks[i].byteLength;
             }
+            if(ifTest()){ //观测数据正确性
+                var tmp = new Uint8Array(result);
+                testLog('range1:', index, endIndex, ':\n');
+                testLog('byteLength1:', tmp.length, 'dataBegin1:', tmp[0].toString(16), tmp[1].toString(16), 'dataEnd1:',tmp[tmp.length-1].toString(16));
+            }
             //删除头部与尾部损坏数据
             result = Player.fixFileBlock(result);
+            if(ifTest()){
+                var tmp = new Uint8Array(result);
+                testLog('byteLength2:', tmp.length, 'dataBegin2:', tmp[0].toString(16), tmp[1].toString(16), 'dataEnd2:',tmp[tmp.length-1].toString(16));
+            }
             //删除VBR数据帧(兼容ios)
             if (MP3InfoAnalysis.hasVbrHeader(result) != -1) {
                 result = Player.fixFileBlock(result, 2, false, true);
+            }
+            if(ifTest()){
+                var tmp = new Uint8Array(result);
+                testLog('byteLength3:', tmp.length, 'dataBegin3:', tmp[0].toString(16), tmp[1].toString(16), 'dataEnd3:', tmp[tmp.length-1].toString(16), '\n');
             }
             return {
                 arrayBuffer: result,
