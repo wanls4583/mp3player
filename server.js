@@ -4,7 +4,13 @@ const path = require('path');
 const mime = require('mime');//根据文件后缀获取文件类型工具
 
 const server = http.createServer((req, res) => {
-	var realPath = __dirname+req.url;
+	var realPath;
+	if(req.url.indexOf('?')>-1){
+		realPath = __dirname+req.url.substring(0,req.url.indexOf('?'));
+	}else{
+		realPath = __dirname+req.url;
+	}
+	
     var exist = fs.existsSync(realPath);
     if(exist){
         sendFile(realPath,req,res);

@@ -12,13 +12,12 @@
         }
         return -1;
     }
-    // Promise.prototype.finally = function(cb){
-    //     return this.then(function(value){
-    //         Promise.resolve(cb()).then(function(){return value});
-    //     },function(e){
-    //         Promise.resolve(cb()).then(function(){return e});
-    //     })
-    // }
+
+    function log() {
+        if (location.search.indexOf('debug')) {
+            console.log.apply(this, arguments);
+        }
+    }
     //MP3播放信息解析对象
     var MP3InfoAnalysis = {
         init: function() {
@@ -279,7 +278,7 @@
                 if (!Player.audioContext) {
                     Player.audioContext = new Player.AudioContext();
                     Player.audioContext.onstatechange = function() {
-                        console.log(Player.audioContext.state);
+                        log(Player.audioContext.state);
                     }
                 } else if (Player.audioContext.state == 'suspended') {
                     Player.audioContext.resume();
@@ -288,67 +287,84 @@
                     //解码中
                     Player.decoding = true;
                 }
-                // console.log('解码:'+result.beginIndex+','+result.endIndex)
+                log('解码:' + result.beginIndex + ',' + result.endIndex)
                 Player.audioContext.decodeAudioData(result.arrayBuffer, function(buffer) { //解码成功则调用此函数，参数buffer为解码后得到的结果
-                    var audioBufferSouceNode = null;
+                    var souceNode = null;
                     if (souceNodeQueue != Player.souceNodeQueue) { //防止seek时，之前未完成的异步解码对新队列的影响
                         return;
                     }
-                    audioBufferSouceNode = Player.audioContext.createBufferSource();
-                    audioBufferSouceNode.connect(Player.audioContext.destination);
-                    audioBufferSouceNode.buffer = buffer;
-                    audioBufferSouceNode.beginIndex = result.beginIndex;
-                    audioBufferSouceNode.endIndex = result.endIndex;
-                    souceNodeQueue.push(audioBufferSouceNode);
+                    souceNode = Player.audioContext.createBufferSource();
+                    souceNode.connect(Player.audioContext.destination);
+                    souceNode.buffer = buffer;
+                    souceNode.beginIndex = result.beginIndex;
+                    souceNode.endIndex = result.endIndex;
+                    souceNodeQueue.push(souceNode);
                     Player.decoding = false;
-                    // console.log('解码完成:'+result.beginIndex+','+result.endIndex,'duration:',buffer.duration);
+                    log('解码完成:' + result.beginIndex + ',' + result.endIndex, 'duration:', buffer.duration);
                     if (!Player.hasPlayed) {
                         Player.hasPlayed = true;
-                        if (audioBufferSouceNode.endIndex + 1 < indexSize) {
-                            setTimeout(function() {
-                                Player.decodeAudioData(audioBufferSouceNode.beginIndex, minSize * 2, null, souceNodeQueue);
+                        if (souceNode.endIndex + 1 < indexSize) {
+                            Player.decodeTimeoutId = setTimeout(function() {
+                                if (Player.loadingPromise) {
+                                    Player.loadingPromise.stopNextLoad = true;
+                                    Player.loadingPromise.then(function() {
+                                        Player.decodeAudioData(souceNode.beginIndex, souceNode.endIndex - souceNode.endIndex + 1 + minSize, null, souceNodeQueue);
+                                    })
+                                } else {
+                                    Player.decodeAudioData(souceNode.beginIndex, souceNode.endIndex - souceNode.endIndex + 1 + minSize, null, souceNodeQueue);
+                                }
                             }, buffer.duration * 1000 / 2);
                         }
                         if (isIos && iosClicked || !isIos) {
-                            if (audioBufferSouceNode.start) {
-                                audioBufferSouceNode.start(0);
+                            if (souceNode.start) {
+                                souceNode.start(0);
                             } else {
-                                audioBufferSouceNode.noteOn(0);
+                                souceNode.noteOn(0);
                             }
-                            console.log('play1:', audioBufferSouceNode.beginIndex);
+                            log('play1:', souceNode.beginIndex);
                         }
                         souceNodeQueue.shift();
-                        Player.nowSouceNode = audioBufferSouceNode;
+                        Player.nowSouceNode = souceNode;
                     }
                     //播放完成后播放下一段音频
-                    audioBufferSouceNode.onended = function() {
-                        finish(audioBufferSouceNode, audioBufferSouceNode.buffer.duration);
+                    souceNode.onended = function() {
+                        finish(souceNode, souceNode.buffer.duration);
                     }
 
-                    function finish(audioBufferSouceNode, startTime) {
-                        audioBufferSouceNode.finished = true;
-                        audioBufferSouceNode.disconnect();
-                        if (audioBufferSouceNode.endIndex == indexSize - 1) {
+                    function finish(souceNode, startTime) {
+                        souceNode.finished = true;
+                        souceNode.disconnect();
+                        if (souceNode.endIndex == indexSize - 1) {
                             Player.audioContext.suspend();
                         } else {
                             if (souceNodeQueue.length > 0) {
-                                var souceNode = souceNodeQueue.shift();
-                                console.log('continue')
+                                souceNode = souceNodeQueue.shift();
+                                log('continue')
                                 if (souceNode.start) {
                                     souceNode.start(0, startTime);
                                 } else {
                                     souceNode.noteOn(0, startTime);
                                 }
-                                console.log('play2:', souceNode.beginIndex);
+                                log('play2:', souceNode.beginIndex);
                                 if (souceNode.endIndex + 1 < indexSize) {
-                                    Player.decodeAudioData(souceNode.beginIndex, minSize * 2);
+                                    clearTimeout(Player.decodeTimeoutId);
+                                    Player.decodeTimeoutId = setTimeout(function() {
+                                        if (Player.loadingPromise) {
+                                            Player.loadingPromise.stopNextLoad = true;
+                                            Player.loadingPromise.then(function() {
+                                                Player.decodeAudioData(souceNode.beginIndex, souceNode.endIndex - souceNode.endIndex + 1 + minSize, null, souceNodeQueue);
+                                            })
+                                        } else {
+                                            Player.decodeAudioData(souceNode.beginIndex, souceNode.endIndex - souceNode.endIndex + 1 + minSize, null, souceNodeQueue);
+                                        }
+                                    }, souceNode.buffer.duration * 1000 / 2);
                                 }
                                 Player.nowSouceNode = souceNode;
                             }
                         }
                     }
-                }, function(e) { //这个是解码失败会调用的函数
-                    console.log(index, "解码失败");
+                }, function(e) {
+                    log(index, "解码失败");
                 });
                 return result;
             });
@@ -380,9 +396,10 @@
                 var result = null;
                 var length = 0;
                 result = Player.joinNextCachedFileBlock(index, minSize, negative);
-                return new Promise(function(resolve) {
-                    resolve(result);
-                })
+                if (result.endIndex < indexSize - 1) {
+                    Player.loadFrame(result.endIndex + 1, Player.cacheFrameSize);
+                }
+                return Promise.resolve(result);
             }
             //防止尾部加载重复数据
             var i = beginIndex + minSize - 1;
@@ -403,7 +420,7 @@
                 beginIndex: beginIndex,
                 endIndex: beginIndex + minSize - 1
             };
-            console.log('loading:', beginIndex, beginIndex + minSize - 1)
+            log('loading:', beginIndex, beginIndex + minSize - 1)
             var promise = new Promise(function(resolve, reject) {
                 var request = new XMLHttpRequest();
                 request.open('GET', url, true);
@@ -430,7 +447,7 @@
                             begin = end;
                         }
                     }
-                    console.log('load完成:', beginIndex, beginIndex + minSize - 1);
+                    log('load完成:', beginIndex, beginIndex + minSize - 1);
                     if (!Player.loadingPromise.stopNextLoad) {
                         setTimeout(function() {
                             Player.loadFrame(index + originMinSize, originMinSize);
@@ -453,7 +470,7 @@
             var result = null;
             var endIndex = index;
             var indexLength = Player.fileBlocks.length;
-            // console.log('join',index)
+            log('join', index)
             //消极情况下只返回minSize个数据块
             if (negative) {
                 indexLength = index + minSize;
@@ -570,6 +587,7 @@
         seek: function(index) {
             Player.hasPlayed = false;
             Player.souceNodeQueue = [];
+            clearTimeout(Player.decodeTimeoutId);
             if (Player.nowSouceNode) {
                 Player.nowSouceNode.disconnect();
                 Player.nowSouceNode = null;
@@ -622,9 +640,7 @@
             }
         }
         this.seek = function(percent) {
-            if (Player.audioContext) {
-                Player.seek(percent);
-            }
+            Player.seek(percent);
         }
     }
     if (window.define) {
