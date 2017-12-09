@@ -4,6 +4,7 @@
     var decrypt = function() {}; //解密函数
     var iosClicked = false;
     var isIos = navigator.userAgent.indexOf('iPhone') > -1;
+    var iosPlayTimoutId = null;
     Array.prototype.indexOf = function(item) {
         for (var i = 0; i < this.length; i++) {
             if (this[i] == item) {
@@ -293,6 +294,12 @@
             Player.loadingPromise = null; //数据加载异步对象集合
             Player.decodeAudioData(0, Player.cacheFrameSize, true, Player.souceNodeQueue);
         },
+        // 计时器
+        timeoutIds: {
+            decodeTimeoutId: null,
+            waiteForDecodeTimeoutId: null,
+            nodePlayTimoutId: null
+        },
         //解码
         decodeAudioData: function(index, minSize, negative, souceNodeQueue) {
             if (index >= indexSize) {
@@ -340,7 +347,7 @@
                     if (!Player.hasPlayed) {
                         Player.hasPlayed = true;
                         if (souceNode.endIndex + 1 < indexSize) {
-                            Player.decodeTimeoutId = setTimeout(function() {
+                            Player.timeoutIds.decodeTimeoutId = setTimeout(function() {
                                 if (Player.loadingPromise) {
                                     Player.loadingPromise.stopNextLoad = true;
                                     Player.loadingPromise.then(function() {
@@ -383,8 +390,8 @@
                     function _startPlayTimeInterval(souceNode) {
                         var context = souceNode.context;
                         var beginTime = context.currentTime;
-                        clearInterval(Player.nodePlayTimoutId);
-                        Player.nodePlayTimoutId = setInterval(function() {
+                        clearInterval(Player.timeoutIds.nodePlayTimoutId);
+                        Player.timeoutIds.nodePlayTimoutId = setInterval(function() {
                             if (context.currentTime - beginTime + 1 > souceNode.buffer.duration) {
                                 _finish(souceNode, context.currentTime - beginTime);
                             }
@@ -392,7 +399,7 @@
                     }
                     // 完成后播放下一段
                     function _finish(souceNode, startTime) {
-                        clearInterval(Player.nodePlayTimoutId);
+                        clearInterval(Player.timeoutIds.nodePlayTimoutId);
                         souceNode.finished = true;
                         souceNode.disconnect();
                         if (souceNode.endIndex == indexSize - 1) {
@@ -404,8 +411,8 @@
                                 _play(souceNode, startTime);
                                 log('play2:', souceNode.beginIndex, souceNode.endIndex);
                                 if (souceNode.endIndex + 1 < indexSize) {
-                                    clearTimeout(Player.decodeTimeoutId);
-                                    Player.decodeTimeoutId = setTimeout(function() {
+                                    clearTimeout(Player.timeoutIds.decodeTimeoutId);
+                                    Player.timeoutIds.decodeTimeoutId = setTimeout(function() {
                                         if (Player.loadingPromise) {
                                             Player.loadingPromise.stopNextLoad = true;
                                             Player.loadingPromise.then(function() {
@@ -417,6 +424,11 @@
                                     }, souceNode.buffer.duration * 1000 / 2);
                                 }
                                 Player.nowSouceNode = souceNode;
+                            } else {
+                                // 下一段音频还没有解码完成
+                                Player.timeoutIds.waiteForDecodeTimeoutId = setTimeout(function() {
+                                    _finish(souceNode, startTime);
+                                }, 1000);
                             }
                         }
                     }
@@ -671,7 +683,7 @@
         seek: function(index) {
             Player.hasPlayed = false;
             Player.souceNodeQueue = [];
-            clearTimeout(Player.decodeTimeoutId);
+            Player._clearTimeout();
             if (Player.nowSouceNode) {
                 Player.nowSouceNode.disconnect();
                 Player.nowSouceNode = null;
@@ -688,6 +700,12 @@
             } else {
                 Player.decodeAudioData(index, Player.cacheFrameSize, true, Player.souceNodeQueue)
             }
+        },
+        _clearTimeout: function() {
+            clearTimeout(iosPlayTimoutId);
+            clearTimeout(Player.timeoutIds.decodeTimeoutId);
+            clearTimeout(Player.timeoutIds.waiteForDecodeTimeoutId);
+            clearInterval(Player.timeoutIds.nodePlayTimoutId);
         }
     }
     //调试模式抛出到全局
@@ -696,7 +714,6 @@
     }
     //对外接口
     function Mp3Player(_url, opt) {
-        var playTimoutId = null;
         url = _url;
         if (typeof opt == 'object' && typeof opt.decrypt == 'function') {
             decrypt = opt.decrypt;
@@ -706,13 +723,13 @@
             var self = this;
             var nowSouceNode = Player.nowSouceNode;
             var audioContext = Player.audioContext
-            clearTimeout(playTimoutId);
-            if (!Player.firstPlayResolve) {
-                playTimoutId = setTimeout(function() {
+            clearTimeout(iosPlayTimoutId);
+            if (isIos && !Player.firstPlayResolve) {
+                iosPlayTimoutId = setTimeout(function() {
                     self.play();
                 }, 100);
             }
-            if (nowSouceNode && !iosClicked) {
+            if (isIos && nowSouceNode && !iosClicked) {
                 Player.firstPlayResolve();
                 iosClicked = true;
             } else if (audioContext.state == 'suspend') {
