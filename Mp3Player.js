@@ -44,24 +44,42 @@
         },
         //ajax获取音频头部标签头(32B)
         loadHeaderInfo: function(resolve, reject) {
-            var request = new XMLHttpRequest();
-            request.open('GET', url, true);
-            request.responseType = 'arraybuffer';
-            request.onload = function() {
-                var arrayBuffer = request.response;
-                var contentLength = request.getResponseHeader('Content-Length');
-                var contetnRange = request.getResponseHeader('Content-Range');
-                //数据解密
-                decrypt(arrayBuffer);
-                if (contentLength != 32 * 8) {
-                    console.error('获取头部信息出错');
+            _loadData(0, 32 * 8 - 1, function() {
+                _loadData(32 * 8, 32 * 8 + 32 * 8 - 1);
+            });
+            // 需要load两次数据（可能同时存在APETAGEX标签和ID3V2标签）
+            function _loadData(begin, end, callback) {
+                var request = new XMLHttpRequest();
+                request.open('GET', url, true);
+                request.responseType = 'arraybuffer';
+                request.onload = function() {
+                    var arrayBuffer = request.response;
+                    var contentLength = request.getResponseHeader('Content-Length');
+                    var contetnRange = request.getResponseHeader('Content-Range');
+                    var length = 0;
+                    //数据解密
+                    decrypt(arrayBuffer);
+                    if (contentLength != end - begin + 1) {
+                        console.error('获取头部信息出错');
+                    }
+                    length = MP3InfoAnalysis.getHeaderLength(arrayBuffer);
+                    if (!MP3InfoAnalysis.mp3Info.headerLength) {
+                        MP3InfoAnalysis.mp3Info.headerLength = length;
+                    } else {
+                        MP3InfoAnalysis.mp3Info.headerLength += length;
+                    }
+                    if (!MP3InfoAnalysis.mp3Info.fileSize) {
+                        MP3InfoAnalysis.mp3Info.fileSize = parseInt(contetnRange.substr(contetnRange.indexOf('/') + 1));
+                    }
+                    if (callback) {
+                        callback();
+                    } else {
+                        resolve();
+                    }
                 }
-                MP3InfoAnalysis.mp3Info.fileSize = parseInt(contetnRange.substr(contetnRange.indexOf('/') + 1));
-                MP3InfoAnalysis.mp3Info.headerLength = MP3InfoAnalysis.getHeaderLength(arrayBuffer);
-                resolve();
+                request.setRequestHeader("Range", 'bytes=' + begin + '-' + end);
+                request.send();
             }
-            request.setRequestHeader("Range", "bytes=0-" + (32 * 8 - 1));
-            request.send();
         },
         //获取ID3V2|APEV2标签长度
         getHeaderLength: function(arrayBuffer) {

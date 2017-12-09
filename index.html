@@ -22,13 +22,13 @@
     <script type="text/javascript">
     var mp3 = new Mp3Player('test.mp3'
         /*,{
-                    decrypt:function(arrayBuffer) {
-                        var arr = new Uint8Array(arrayBuffer);
-                        for (var i = 0; i < arr.length; i++) {
-                            arr[i] = arr[i] - 1;
-                        }
-                    }
-                }*/
+            decrypt:function(arrayBuffer) {
+                var arr = new Uint8Array(arrayBuffer);
+                for (var i = 0; i < arr.length; i++) {
+                    arr[i] = arr[i] - 1;
+                }
+            }
+        }*/
     );
     document.getElementById("myRange").onchange = function() {
         var percent = document.getElementById("myRange").value;
