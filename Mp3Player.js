@@ -14,17 +14,25 @@
     }
 
     function log() {
-        if (location.search.indexOf('debug')>-1) {
+        if (location.search.indexOf('debug') > -1) {
             console.log.apply(this, arguments);
         }
     }
+
     function testLog() {
-        if (location.search.indexOf('test')>-1) {
+        if (location.search.indexOf('test') > -1) {
             console.log.apply(this, arguments);
         }
     }
-    function ifTest(){
-        if (location.search.indexOf('test')>-1) {
+
+    function ifDebug() {
+        if (location.search.indexOf('debug') > -1) {
+            return true;
+        }
+    }
+
+    function ifTest() {
+        if (location.search.indexOf('test') > -1) {
             return true;
         }
     }
@@ -116,7 +124,7 @@
             headerFlag = MP3InfoAnalysis.hasVbrHeader(arrayBuffer);
             if (headerFlag != -1) { //存在Info头或者Xing头
                 vbrDataBuffer = arrayBuffer.slice(headerFlag / 2);
-                return getInfo(vbrDataBuffer);
+                return _getInfo(vbrDataBuffer);
             } else { //纯CBR编码
                 var frameSize = MP3InfoAnalysis.getFrameSize(arrayBuffer);
                 var totalTime = (mp3Info.fileSize - mp3Info.headerLength) / samplingRate;
@@ -125,7 +133,7 @@
                 };
             }
             //获取总帧数
-            function getTotalFrame(vbrDataBuffer) {
+            function _getTotalFrame(vbrDataBuffer) {
                 vbrDataBuffer = vbrDataBuffer.slice(0, 12);
                 var vbrUint8Array = new Uint8Array(vbrDataBuffer);
                 if (vbrUint8Array[7] & 1) {
@@ -134,7 +142,7 @@
                     return false;
             }
             //获取数据帧总大小(bit)
-            function getTotalSize(vbrDataBuffer) {
+            function _getTotalSize(vbrDataBuffer) {
                 vbrDataBuffer = vbrDataBuffer.slice(0, 16);
                 var vbrUint8Array = new Uint8Array(vbrDataBuffer);
                 if (vbrUint8Array[7] & 2) {
@@ -147,19 +155,19 @@
                     return false;
             }
             //获取帧索引数组(100个)
-            function getToc(vbrDataBuffer) {
+            function _getToc(vbrDataBuffer) {
                 var vbrUint8Array = new Uint8Array(vbrDataBuffer);
                 if (vbrUint8Array[7] & 4) {
                     if (!(vbrUint8Array[7] & 1) && !(vbrUint8Array[7] & 2)) {
-                        return _getToc(vbrDataBuffer.slice(8));
+                        return _getToc_(vbrDataBuffer.slice(8));
                     } else if ((vbrUint8Array[7] & 1) && !(vbrUint8Array[7] & 2) || !(vbrUint8Array[7] & 1) && (vbrUint8Array[7] & 2)) {
-                        return _getToc(vbrDataBuffer.slice(12));
+                        return _getToc_(vbrDataBuffer.slice(12));
                     } else {
-                        return _getToc(vbrDataBuffer.slice(16));
+                        return _getToc_(vbrDataBuffer.slice(16));
                     }
                 }
 
-                function _getToc(docArrayBuffer) {
+                function _getToc_(docArrayBuffer) {
                     var indexArr = [];
                     var docuUnit8Array = new Uint8Array(docArrayBuffer.slice(0, indexSize));
                     for (var i = 0; i < 100; i++) {
@@ -169,11 +177,11 @@
                 }
             }
 
-            function getInfo(vbrDataBuffer) {
-                mp3Info.totalFrame = getTotalFrame(vbrDataBuffer);
+            function _getInfo(vbrDataBuffer) {
+                mp3Info.totalFrame = _getTotalFrame(vbrDataBuffer);
                 mp3Info.totalTime = 1152 * mp3Info.totalFrame / samplingRate;
-                mp3Info.totalSize = getTotalSize(vbrDataBuffer);
-                mp3Info.toc = getToc(vbrDataBuffer);
+                mp3Info.totalSize = _getTotalSize(vbrDataBuffer);
+                mp3Info.toc = _getToc(vbrDataBuffer);
                 return mp3Info;
             }
         },
@@ -326,22 +334,47 @@
                             }, buffer.duration * 1000 / 2);
                         }
                         if (isIos && iosClicked || !isIos) {
-                            if (souceNode.start) {
-                                souceNode.start(0);
-                            } else {
-                                souceNode.noteOn(0);
-                            }
+                            _play(souceNode)
                             log('play1:', souceNode.beginIndex, souceNode.endIndex);
+                        } else { // ios首次播放必须手动触发
+                            new Promise(function(resolve) {
+                                Player.firstPlayResolve = resolve;
+                            }).then(function() {
+                                _play(souceNode);
+                                log('play1:', souceNode.beginIndex, souceNode.endIndex);
+                            })
                         }
                         souceNodeQueue.shift();
                         Player.nowSouceNode = souceNode;
                     }
-                    //播放完成后播放下一段音频
+                    // 播放完成后播放下一段音频
                     souceNode.onended = function() {
-                        finish(souceNode, souceNode.buffer.duration);
+                        _finish(souceNode, souceNode.buffer.duration);
                     }
-
-                    function finish(souceNode, startTime) {
+                    // 播放
+                    function _play(souceNode, startTime) {
+                        startTime = startTime || 0;
+                        if (souceNode.start) {
+                            souceNode.start(0, startTime);
+                        } else {
+                            souceNode.noteOn(0, startTime);
+                        }
+                        _startPlayTimeInterval(souceNode);
+                    }
+                    // 播放计时器(onended有稍微误差，手机黑屏后计时器无效，将使用onended回调函数)
+                    function _startPlayTimeInterval(souceNode) {
+                        var context = souceNode.context;
+                        var beginTime = context.currentTime;
+                        clearInterval(Player.nodePlayTimoutId);
+                        Player.nodePlayTimoutId = setInterval(function() {
+                            if (context.currentTime - beginTime + 1 > souceNode.buffer.duration) {
+                                _finish(souceNode, context.currentTime - beginTime);
+                            }
+                        }, 100);
+                    }
+                    // 完成后播放下一段
+                    function _finish(souceNode, startTime) {
+                        clearInterval(Player.nodePlayTimoutId);
                         souceNode.finished = true;
                         souceNode.disconnect();
                         if (souceNode.endIndex == indexSize - 1) {
@@ -350,11 +383,7 @@
                             if (souceNodeQueue.length > 0) {
                                 souceNode = souceNodeQueue.shift();
                                 log('continue')
-                                if (souceNode.start) {
-                                    souceNode.start(0, startTime);
-                                } else {
-                                    souceNode.noteOn(0, startTime);
-                                }
+                                _play(souceNode, startTime);
                                 log('play2:', souceNode.beginIndex, souceNode.endIndex);
                                 if (souceNode.endIndex + 1 < indexSize) {
                                     clearTimeout(Player.decodeTimeoutId);
@@ -463,18 +492,18 @@
                     resolve(Player.joinNextCachedFileBlock(index, originMinSize, negative));
                 }
                 request.ontimeout = function(e) {
-                    Player.loadingPromise.then(function(){
+                    Player.loadingPromise.then(function() {
                         Player.loadFrame(index, minSize, negative);
                     })
                     reject(e);
                 }
                 request.onerror = function(e) {
-                    Player.loadingPromise.then(function(){
+                    Player.loadingPromise.then(function() {
                         Player.loadFrame(index, minSize, negative);
                     })
                     reject(e);
                 }
-                request.onabort = function(e){
+                request.onabort = function(e) {
                     reject('abort');
                 }
                 request.setRequestHeader("Range", "bytes=" + begin + '-' + (end - 1));
@@ -513,24 +542,24 @@
                 arr.set(new Uint8Array(Player.fileBlocks[i]), length);
                 length += Player.fileBlocks[i].byteLength;
             }
-            if(ifTest()){ //观测数据正确性
+            if (ifTest()) { //观测数据正确性
                 var tmp = new Uint8Array(result);
                 testLog('range1:', index, endIndex, ':\n');
-                testLog('byteLength1:', tmp.length, 'dataBegin1:', tmp[0].toString(16), tmp[1].toString(16), 'dataEnd1:',tmp[tmp.length-1].toString(16));
+                testLog('byteLength1:', tmp.length, 'dataBegin1:', tmp[0].toString(16), tmp[1].toString(16), 'dataEnd1:', tmp[tmp.length - 1].toString(16));
             }
             //删除头部与尾部损坏数据
             result = Player.fixFileBlock(result);
-            if(ifTest()){
+            if (ifTest()) {
                 var tmp = new Uint8Array(result);
-                testLog('byteLength2:', tmp.length, 'dataBegin2:', tmp[0].toString(16), tmp[1].toString(16), 'dataEnd2:',tmp[tmp.length-1].toString(16));
+                testLog('byteLength2:', tmp.length, 'dataBegin2:', tmp[0].toString(16), tmp[1].toString(16), 'dataEnd2:', tmp[tmp.length - 1].toString(16));
             }
             //删除VBR数据帧(兼容ios)
             if (MP3InfoAnalysis.hasVbrHeader(result) != -1) {
                 result = Player.fixFileBlock(result, 2, false, true);
             }
-            if(ifTest()){
+            if (ifTest()) {
                 var tmp = new Uint8Array(result);
-                testLog('byteLength3:', tmp.length, 'dataBegin3:', tmp[0].toString(16), tmp[1].toString(16), 'dataEnd3:', tmp[tmp.length-1].toString(16), '\n');
+                testLog('byteLength3:', tmp.length, 'dataBegin3:', tmp[0].toString(16), tmp[1].toString(16), 'dataEnd3:', tmp[tmp.length - 1].toString(16), '\n');
             }
             return {
                 arrayBuffer: result,
@@ -561,20 +590,20 @@
             beginIndex = beginIndex || 0;
             var result = arrayBuffer;
             if (!excludeBegin) {
-                var begeinExtraLength = getExtraLength(arrayBuffer);
+                var begeinExtraLength = _getExtraLength(arrayBuffer);
                 if (begeinExtraLength) {
                     result = arrayBuffer.slice(begeinExtraLength)
                 }
             }
             if (!excludeEnd) {
-                var endExtraLength = getExtraLength(arrayBuffer, true);
+                var endExtraLength = _getExtraLength(arrayBuffer, true);
                 if (endExtraLength) {
                     result = result.slice(0, result.byteLength - endExtraLength);
                 }
             }
             return result;
             //获取数据块头部或尾部多余的数据长度(字节)
-            function getExtraLength(arrayBuffer, reverse) {
+            function _getExtraLength(arrayBuffer, reverse) {
                 var i = 0;
                 var count = 200;
                 var bufferStr = '';
@@ -634,7 +663,7 @@
                 // Player.loadingPromise.then(function() {
                 // Player.decodeAudioData(index, Player.cacheFrameSize, true, Player.souceNodeQueue)
                 // });
-                Player.loadingPromise.then(function(){
+                Player.loadingPromise.then(function() {
                     Player.decodeAudioData(index, Player.cacheFrameSize, true, Player.souceNodeQueue);
                 });
                 Player.request.abort(); //强制中断下载
@@ -643,7 +672,10 @@
             }
         }
     }
-    window.seek = Player.seek;
+    //调试模式抛出到全局
+    if (ifDebug()) {
+        global.Player = Player;
+    }
     //对外接口
     function Mp3Player(_url, opt) {
         var playTimoutId = null;
@@ -657,17 +689,13 @@
             var nowSouceNode = Player.nowSouceNode;
             var audioContext = Player.audioContext
             clearTimeout(playTimoutId);
-            if (Player.decoding || Player.loading) {
+            if (!Player.firstPlayResolve) {
                 playTimoutId = setTimeout(function() {
                     self.play();
                 }, 100);
             }
             if (nowSouceNode && !iosClicked) {
-                if (nowSouceNode.start) {
-                    nowSouceNode.start(0);
-                } else {
-                    nowSouceNode.noteOn(0);
-                }
+                Player.firstPlayResolve();
                 iosClicked = true;
             } else if (audioContext.state == 'suspend') {
                 audioContext.resume();
