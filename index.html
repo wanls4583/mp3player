@@ -20,15 +20,22 @@
     <button onclick="play()">播放</button>
     <script type="text/javascript" src="js/Mp3Player.js"></script>
     <script type="text/javascript">
-    var mp3 = new Mp3Player('test.mp3'
-        /*,{
-            decrypt:function(arrayBuffer) {
-                var arr = new Uint8Array(arrayBuffer);
-                for (var i = 0; i < arr.length; i++) {
-                    arr[i] = arr[i] - 1;
+    var currentTime = 0;
+    var mp3 = new Mp3Player('test.mp3',
+        {
+            updateTimeCb: function(_currentTime){
+                if(currentTime !=  Math.round(_currentTime)){
+                    currentTime = Math.round(_currentTime);
+                    // console.log(currentTime);
                 }
             }
-        }*/
+            // ,decrypt:function(arrayBuffer) {
+            //     var arr = new Uint8Array(arrayBuffer);
+            //     for (var i = 0; i < arr.length; i++) {
+            //         arr[i] = arr[i] - 1;
+            //     }
+            // }
+        }
     );
     document.getElementById("myRange").onchange = function() {
         var percent = document.getElementById("myRange").value;

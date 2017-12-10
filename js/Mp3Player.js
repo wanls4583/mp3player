@@ -2,6 +2,7 @@
     var indexSize = 100; //区块个数
     var url = ''; //音频链接
     var decrypt = function() {}; //解密函数
+    var updateTimeCb = function() {}; //更新时间回调
     var iosClicked = false;
     var isIos = navigator.userAgent.indexOf('iPhone') > -1;
     var iosPlayTimoutId = null;
@@ -298,10 +299,12 @@
         timeoutIds: {
             decodeTimeoutId: null,
             waiteForDecodeTimeoutId: null,
-            nodePlayTimoutId: null
+            nodePlayTimoutId: null,
+            updateTimeoutId: null
         },
         //解码
         decodeAudioData: function(index, minSize, negative, souceNodeQueue) {
+            var mp3Info = MP3InfoAnalysis.mp3Info;
             if (index >= indexSize) {
                 Player.loading = false;
                 Player.decoding = false;
@@ -352,6 +355,8 @@
                     }
                     if (!Player.hasPlayed) {
                         Player.hasPlayed = true;
+                        Player.beginTime = Player.audioContext.currentTime;
+                        Player.offsetTime = mp3Info.totalTime * souceNode.beginIndex/indexSize;
                         if (souceNode.endIndex + 1 < indexSize) {
                             Player.timeoutIds.decodeTimeoutId = setTimeout(function() {
                                 if (Player.loadingPromise) {
@@ -377,14 +382,29 @@
                         }
                         souceNodeQueue.shift();
                         Player.nowSouceNode = souceNode;
+                        clearInterval(Player.timeoutIds.updateTimeoutId);
+                        _startUpdateTimeoutId();
                     }
 
                     // souceNode.onended = function() {
                     //     _finish(souceNode, souceNode.buffer.duration);
                     // }
+                    // 开始更新计时器
+                    function _startUpdateTimeoutId(){
+                        Player.timeoutIds.updateTimeoutId = setInterval(function(){
+                            var beginIndex = Player.nowSouceNode.beginIndex;
+                            var endIndex = Player.nowSouceNode.endIndex;
+                            //平衡音频时间
+                            var time = Player.audioContext.currentTime - Player.beginTime * ((mp3Info.totalTime * (endIndex - beginIndex)/indexSize)/Player.nowSouceNode.buffer.duration);
+                            updateTimeCb(time + Player.offsetTime);
+                        },1000);
+                    }
                     // 播放
                     function _play(souceNode, startTime, seconds) {
                         startTime = startTime || 0;
+                        if(Player.audioContext.state == 'suspended'){
+                            Player.audioContext.resume();
+                        }
                         if (souceNode.start) {
                             souceNode.start(0, startTime);
                         } else {
@@ -440,6 +460,7 @@
                                 }
                                 Player.nowSouceNode = newSouceNode;
                             } else {
+                                Player.audioContext.suspend(); // 等待解码时，先暂停
                                 // 下一段音频还没有解码完成
                                 Player.timeoutIds.waiteForDecodeTimeoutId = setTimeout(function() {
                                     _finish(souceNode, startTime);
@@ -721,6 +742,7 @@
             clearTimeout(Player.timeoutIds.decodeTimeoutId);
             clearTimeout(Player.timeoutIds.waiteForDecodeTimeoutId);
             clearInterval(Player.timeoutIds.nodePlayTimoutId);
+            clearInterval(Player.timeoutIds.updateTimeoutId);
         }
     }
     //调试模式抛出到全局
@@ -730,8 +752,13 @@
     //对外接口
     function Mp3Player(_url, opt) {
         url = _url;
-        if (typeof opt == 'object' && typeof opt.decrypt == 'function') {
-            decrypt = opt.decrypt;
+        if (typeof opt == 'object') {
+            if(typeof opt.decrypt == 'function'){
+                decrypt = opt.decrypt;
+            }
+            if(typeof opt.updateTimeCb == 'function'){
+                updateTimeCb = opt.updateTimeCb;
+            }
         }
         MP3InfoAnalysis.init().then(Player.init);
         this.play = function() {
