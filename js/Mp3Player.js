@@ -330,7 +330,7 @@
                     //解码中
                     Player.decoding = true;
                 }
-                log(new Date().toLocaleString() + '解码:' + result.beginIndex + ',' + result.endIndex)
+                log(new Date().toLocaleString() , '解码:' + result.beginIndex + ',' + result.endIndex)
                 Player.audioContext.decodeAudioData(result.arrayBuffer, function(buffer) { //解码成功则调用此函数，参数buffer为解码后得到的结果
                     var souceNode = null;
                     if (souceNodeQueue != Player.souceNodeQueue) { //防止seek时，之前未完成的异步解码对新队列的影响
@@ -343,7 +343,7 @@
                     souceNode.endIndex = result.endIndex;
                     souceNodeQueue.push(souceNode);
                     Player.decoding = false;
-                    log(new Date().toLocaleString() + '解码完成:' + result.beginIndex + ',' + result.endIndex, 'duration:', buffer.duration);
+                    log(new Date().toLocaleString() , '解码完成:' + result.beginIndex + ',' + result.endIndex, 'duration:', buffer.duration);
                     if (!Player.hasPlayed) {
                         Player.hasPlayed = true;
                         if (souceNode.endIndex + 1 < indexSize) {
