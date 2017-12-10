@@ -355,8 +355,9 @@
                     }
                     if (!Player.hasPlayed) {
                         Player.hasPlayed = true;
-                        Player.beginTime = Player.audioContext.currentTime;
+                        Player.beginTime =  Player.audioContext.currentTime;
                         Player.offsetTime = mp3Info.totalTime * souceNode.beginIndex/indexSize;
+                        Player.currentTime = Math.round(Player.offsetTime);
                         if (souceNode.endIndex + 1 < indexSize) {
                             Player.timeoutIds.decodeTimeoutId = setTimeout(function() {
                                 if (Player.loadingPromise) {
@@ -396,7 +397,11 @@
                             var endIndex = Player.nowSouceNode.endIndex;
                             //平衡音频时间
                             var time = Player.audioContext.currentTime - Player.beginTime * ((mp3Info.totalTime * (endIndex - beginIndex)/indexSize)/Player.nowSouceNode.buffer.duration);
-                            updateTimeCb(time + Player.offsetTime);
+                            var currentTime = time + Player.offsetTime;
+                            if(Math.round(currentTime) > Player.currentTime){
+                                Player.currentTime = Math.round(currentTime);
+                                updateTimeCb(Player.currentTime);
+                            }
                         },1000);
                     }
                     // 播放
