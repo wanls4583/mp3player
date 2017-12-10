@@ -6,8 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>mp3音频解析</title>
     <script type="text/javascript">
-    if (location.href.indexOf("debug") != -1) {
-        var src = "//cdn.bootcss.com/eruda/1.3.0/eruda.min.js";
+    if (location.href.indexOf("eruda") != -1) {
+        var src = "js/eruda.min.js";
         document.write("<scr" + 'ipt src="' + src + '"></scr' + "ipt>");
         document.write("<scr" + "ipt>eruda.init();</scr" + "ipt>")
     }
@@ -18,7 +18,7 @@
     <input value=0 type="range" id="myRange">
     <p id="per"></p>
     <button onclick="play()">播放</button>
-    <script type="text/javascript" src="Mp3Player.js"></script>
+    <script type="text/javascript" src="js/Mp3Player.js"></script>
     <script type="text/javascript">
     var mp3 = new Mp3Player('test.mp3'
         /*,{
