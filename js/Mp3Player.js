@@ -330,7 +330,10 @@
                     //解码中
                     Player.decoding = true;
                 }
-                log(new Date().toLocaleString() , '解码:' + result.beginIndex + ',' + result.endIndex)
+                log('解码:' + result.beginIndex + ',' + result.endIndex);
+                if(ifDebug()){
+                    var decodeBeginTime = new Date().getTime();
+                }
                 Player.audioContext.decodeAudioData(result.arrayBuffer, function(buffer) { //解码成功则调用此函数，参数buffer为解码后得到的结果
                     var souceNode = null;
                     if (souceNodeQueue != Player.souceNodeQueue) { //防止seek时，之前未完成的异步解码对新队列的影响
@@ -344,6 +347,9 @@
                     souceNodeQueue.push(souceNode);
                     Player.decoding = false;
                     log(new Date().toLocaleString() , '解码完成:' + result.beginIndex + ',' + result.endIndex, 'duration:', buffer.duration);
+                    if(ifDebug()){
+                        log('解码时间:', new Date().getTime() - decodeBeginTime, 'ms');
+                    }
                     if (!Player.hasPlayed) {
                         Player.hasPlayed = true;
                         if (souceNode.endIndex + 1 < indexSize) {
@@ -372,10 +378,10 @@
                         souceNodeQueue.shift();
                         Player.nowSouceNode = souceNode;
                     }
-                    // 播放完成后播放下一段音频
-                    souceNode.onended = function() {
-                        _finish(souceNode, souceNode.buffer.duration);
-                    }
+
+                    // souceNode.onended = function() {
+                    //     _finish(souceNode, souceNode.buffer.duration);
+                    // }
                     // 播放
                     function _play(souceNode, startTime, seconds) {
                         startTime = startTime || 0;
@@ -393,7 +399,7 @@
                         clearInterval(Player.timeoutIds.nodePlayTimoutId);
                         Player.timeoutIds.nodePlayTimoutId = setInterval(function() {
                             var startTime = souceNode.startTime || 0;
-                            if (context.currentTime - beginTime + 0.2 > seconds) {
+                            if (context.currentTime - beginTime + 0.1 > seconds) {
                                 _finish(souceNode, souceNode.buffer.duration - (seconds - (context.currentTime - beginTime)));
                             }
                         }, 100);
@@ -402,35 +408,37 @@
                     function _finish(souceNode, startTime) {
                         clearInterval(Player.timeoutIds.nodePlayTimoutId);
                         souceNode.finished = true;
-                        souceNode.disconnect();
+                        setTimeout(function(){
+                            souceNode.disconnect();
+                        },200);
                         if (souceNode.endIndex == indexSize - 1) {
                             Player.audioContext.suspend();
                         } else {
                             if (souceNodeQueue.length > 0) {
-                                souceNode = souceNodeQueue.shift();
+                                var newSouceNode = souceNodeQueue.shift();
                                 log('continue')
-                                _play(souceNode, startTime, souceNode.buffer.duration - Player.nowSouceNode.buffer.duration);
-                                log('play2:', souceNode.beginIndex, souceNode.endIndex);
-                                if (souceNode.endIndex + 1 < indexSize) {
+                                _play(newSouceNode, startTime, newSouceNode.buffer.duration - Player.nowSouceNode.buffer.duration);
+                                log('play2:', newSouceNode.beginIndex, newSouceNode.endIndex);
+                                if (newSouceNode.endIndex + 1 < indexSize) {
                                     var timeout = 0;
                                     if (Player.nowSouceNode) {
-                                        timeout = (souceNode.buffer.duration - Player.nowSouceNode.buffer.duration) * 1000 / 2;
+                                        timeout = (newSouceNode.buffer.duration - Player.nowSouceNode.buffer.duration) * 1000 / 2;
                                     } else {
-                                        timeout = souceNode.buffer.duration * 1000 / 2;
+                                        timeout = newSouceNode.buffer.duration * 1000 / 2;
                                     }
                                     clearTimeout(Player.timeoutIds.decodeTimeoutId);
                                     Player.timeoutIds.decodeTimeoutId = setTimeout(function() {
                                         if (Player.loadingPromise) {
                                             Player.loadingPromise.stopNextLoad = true;
                                             Player.loadingPromise.then(function() {
-                                                Player.decodeAudioData(souceNode.beginIndex, souceNode.endIndex - souceNode.beginIndex + 1 + minSize, null, souceNodeQueue);
+                                                Player.decodeAudioData(newSouceNode.beginIndex, newSouceNode.endIndex - newSouceNode.beginIndex + 1 + minSize, null, souceNodeQueue);
                                             })
                                         } else {
-                                            Player.decodeAudioData(souceNode.beginIndex, souceNode.endIndex - souceNode.beginIndex + 1 + minSize, null, souceNodeQueue);
+                                            Player.decodeAudioData(newSouceNode.beginIndex, newSouceNode.endIndex - newSouceNode.beginIndex + 1 + minSize, null, souceNodeQueue);
                                         }
                                     }, timeout);
                                 }
-                                Player.nowSouceNode = souceNode;
+                                Player.nowSouceNode = newSouceNode;
                             } else {
                                 // 下一段音频还没有解码完成
                                 Player.timeoutIds.waiteForDecodeTimeoutId = setTimeout(function() {
