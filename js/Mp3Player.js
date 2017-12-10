@@ -349,7 +349,7 @@
                     souceNode.endIndex = result.endIndex;
                     souceNodeQueue.push(souceNode);
                     Player.decoding = false;
-                    log(new Date().toLocaleString() , '解码完成:' + result.beginIndex + ',' + result.endIndex, 'duration:', buffer.duration);
+                    log('解码完成:' + result.beginIndex + ',' + result.endIndex, 'duration:', buffer.duration);
                     if(ifDebug()){
                         log('解码时间:', new Date().getTime() - decodeBeginTime, 'ms');
                     }
