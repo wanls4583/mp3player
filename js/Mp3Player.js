@@ -286,7 +286,8 @@
     }
     //音频播放对象
     var Player = {
-        init: function() {
+        init: function(audioInfo) {
+        	Player.audioInfo = audioInfo; //音频信息
             Player.audioContext = null;
             Player.AudioContext = window.AudioContext || window.webkitAudioContext;
             Player.fileBlocks = new Array(100); //音频数据分区
@@ -306,7 +307,7 @@
         },
         //解码
         decodeAudioData: function(index, minSize, negative, souceNodeQueue) {
-            var mp3Info = MP3InfoAnalysis.mp3Info;
+            var mp3Info = Player.audioInfo;
             if (index >= indexSize) {
                 Player.changeState(false, false);
                 Player.loading = false;
@@ -500,6 +501,7 @@
             var beginIndex = index; //避免网络加载重复数据
             var endIndex = 0;
             var originMinSize = minSize;
+            var audioInfo = Player.audioInfo
             index = index >= indexSize ? indexSize - 1 : index;
             if (index + minSize > indexSize) {
                 minSize = indexSize - index;
@@ -556,12 +558,12 @@
                     decrypt(arrayBuffer);
                     //缓存数据块
                     for (var i = beginIndex; i < beginIndex + minSize && i < indexSize; i++) {
-                        if (MP3InfoAnalysis.mp3Info.toc) { //VBR编码模式
+                        if (audioInfo.toc) { //VBR编码模式
                             end = (begin + (Player.getRangeBeginByIndex(i + 1) - Player.getRangeBeginByIndex(i))) >> 0;
                             Player.fileBlocks[i] = arrayBuffer.slice(begin, end);
                             begin = end;
                         } else { //CBR编码模式
-                            end = begin + MP3InfoAnalysis.mp3Info.frameSize;
+                            end = begin + audioInfo.frameSize;
                             Player.fileBlocks[i] = arrayBuffer.slice(begin, end);
                             begin = end;
                         }
@@ -607,8 +609,8 @@
             var result = null;
             var endIndex = index;
             var indexLength = Player.fileBlocks.length;
-            log('join', index)
-            //消极情况下只返回minSize个数据块
+            // log('join', index)
+            // 开始播放或者seek时只返回minSize个数据块
             if (negative) {
                 indexLength = index + minSize;
                 indexLength = indexLength > indexSize ? indexSize : indexLength;
@@ -654,7 +656,7 @@
         //根据索引号，找到实际的字节位置
         getRangeBeginByIndex: function(index) {
             var begin = 0;
-            var mp3Info = MP3InfoAnalysis.mp3Info;
+            var mp3Info = Player.audioInfo;
             if (mp3Info.toc) {
                 if (index >= indexSize) {
                     begin = mp3Info.fileSize;
@@ -697,6 +699,7 @@
             return result;
             //获取数据块头部或尾部多余的数据长度(字节)
             function _getExtraLength(arrayBuffer, reverse) {
+            	var audioInfo = Player.audioInfo;
                 var i = 0;
                 var count = 200;
                 var bufferStr = '';
@@ -711,8 +714,8 @@
                             }
                         }
                         bufferStr = bufferStr.toUpperCase();
-                        if (bufferStr.indexOf(MP3InfoAnalysis.mp3Info.frameHeaderFlag, offset * 2) != -1) {
-                            return bufferStr.indexOf(MP3InfoAnalysis.mp3Info.frameHeaderFlag, offset * 2) / 2;
+                        if (bufferStr.indexOf(audioInfo.frameHeaderFlag, offset * 2) != -1) {
+                            return bufferStr.indexOf(audioInfo.frameHeaderFlag, offset * 2) / 2;
                         }
                         if (i >= uint8Array.length) {
                             return 0;
@@ -731,8 +734,8 @@
                             }
                         }
                         bufferStr = bufferStr.toUpperCase();
-                        if (bufferStr.indexOf(MP3InfoAnalysis.mp3Info.frameHeaderFlag) != -1) {
-                            return bufferStr.length / 2 - bufferStr.indexOf(MP3InfoAnalysis.mp3Info.frameHeaderFlag) / 2;
+                        if (bufferStr.indexOf(audioInfo.frameHeaderFlag) != -1) {
+                            return bufferStr.length / 2 - bufferStr.indexOf(audioInfo.frameHeaderFlag) / 2;
                         }
                         if (i == 0) {
                             return 0;
