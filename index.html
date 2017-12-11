@@ -22,9 +22,21 @@
     <script type="text/javascript">
     var mp3 = new Mp3Player('test.mp3',
         {
-            updateTimeCb: function(currentTime){
-                // console.log(currentTime);
+            playCb: function(){
+                console.log('开始播放');
+            },
+            pauseCb: function(){
+                console.log('播放暂停');
+            },
+            watingCB: function(){
+                console.log('加载中');
+            },
+            playingCb: function(){
+                console.log('缓冲结束');
             }
+            // updateTimeCb: function(currentTime){
+            //     console.log(currentTime);
+            // }
             // ,decrypt:function(arrayBuffer) {
             //     var arr = new Uint8Array(arrayBuffer);
             //     for (var i = 0; i < arr.length; i++) {
