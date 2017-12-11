@@ -299,7 +299,6 @@
         timeoutIds: {
             decodeTimeoutId: null,
             waiteForDecodeTimeoutId: null,
-            nodePlayTimoutId: null,
             updateTimeoutId: null
         },
         //解码
@@ -334,7 +333,7 @@
                     Player.decoding = true;
                 }
                 log('解码:' + result.beginIndex + ',' + result.endIndex);
-                if(ifDebug()){
+                if (ifDebug()) {
                     var decodeBeginTime = new Date().getTime();
                 }
                 Player.audioContext.decodeAudioData(result.arrayBuffer, function(buffer) { //解码成功则调用此函数，参数buffer为解码后得到的结果
@@ -342,31 +341,32 @@
                     if (souceNodeQueue != Player.souceNodeQueue) { //防止seek时，之前未完成的异步解码对新队列的影响
                         return;
                     }
+                    var scriptNode = Player.audioContext.createScriptProcessor();
                     souceNode = Player.audioContext.createBufferSource();
-                    souceNode.connect(Player.audioContext.destination);
+                    souceNode.scriptNode = scriptNode;
                     souceNode.buffer = buffer;
                     souceNode.beginIndex = result.beginIndex;
                     souceNode.endIndex = result.endIndex;
                     souceNodeQueue.push(souceNode);
                     Player.decoding = false;
                     log('解码完成:' + result.beginIndex + ',' + result.endIndex, 'duration:', buffer.duration);
-                    if(ifDebug()){
+                    if (ifDebug()) {
                         log('解码时间:', new Date().getTime() - decodeBeginTime, 'ms');
                     }
                     if (!Player.hasPlayed) {
                         Player.hasPlayed = true;
-                        Player.beginTime =  Player.audioContext.currentTime;
-                        Player.offsetTime = mp3Info.totalTime * souceNode.beginIndex/indexSize;
+                        Player.beginTime = Player.audioContext.currentTime;
+                        Player.offsetTime = mp3Info.totalTime * souceNode.beginIndex / indexSize;
                         Player.currentTime = Math.round(Player.offsetTime);
                         if (souceNode.endIndex + 1 < indexSize) {
                             Player.timeoutIds.decodeTimeoutId = setTimeout(function() {
                                 if (Player.loadingPromise) {
                                     Player.loadingPromise.stopNextLoad = true;
                                     Player.loadingPromise.then(function() {
-                                        Player.decodeAudioData(souceNode.endIndex+1, minSize, null, souceNodeQueue);
+                                        Player.decodeAudioData(souceNode.endIndex + 1, minSize, null, souceNodeQueue);
                                     })
                                 } else {
-                                    Player.decodeAudioData(souceNode.endIndex+1, minSize, null, souceNodeQueue);
+                                    Player.decodeAudioData(souceNode.endIndex + 1, minSize, null, souceNodeQueue);
                                 }
                             }, buffer.duration * 1000 / 2);
                         }
@@ -386,55 +386,62 @@
                         clearInterval(Player.timeoutIds.updateTimeoutId);
                         _startUpdateTimeoutId();
                     }
+                    var timeCount = 0;
+                    scriptNode.onaudioprocess = function(audioProcessingEvent) {
+                        var inputBuffer = audioProcessingEvent.inputBuffer;
+                        var outputBuffer = audioProcessingEvent.outputBuffer;
 
+                        for (var channel = 0; channel < outputBuffer.numberOfChannels; channel++) {
+                            var inputData = inputBuffer.getChannelData(channel);
+                            var outputData = outputBuffer.getChannelData(channel);
+
+                            for (var sample = 0; sample < inputBuffer.length; sample++) {
+                                outputData[sample] = inputData[sample];
+                            }
+                        }
+                        timeCount += inputBuffer.duration;
+                        if (!souceNode.finished && timeCount + inputBuffer.duration * 3 > souceNode.buffer.duration) {
+                            _finish(souceNode, audioProcessingEvent.playbackTime);
+                        }
+                    }
                     souceNode.onended = function() {
-                        // _finish(souceNode, 0);
+                        setTimeout(function() {
+                            souceNode.scriptNode.disconnect();
+                        }, 1000);
                         souceNode.disconnect();
                     }
                     // 开始更新计时器
-                    function _startUpdateTimeoutId(){
-                        Player.timeoutIds.updateTimeoutId = setInterval(function(){
+                    function _startUpdateTimeoutId() {
+                        Player.timeoutIds.updateTimeoutId = setInterval(function() {
                             var beginIndex = Player.nowSouceNode.beginIndex;
                             var endIndex = Player.nowSouceNode.endIndex;
                             //平衡音频时间
-                            var time = Player.audioContext.currentTime - Player.beginTime * ((mp3Info.totalTime * (endIndex - beginIndex)/indexSize)/Player.nowSouceNode.buffer.duration);
+                            var time = Player.audioContext.currentTime - Player.beginTime * ((mp3Info.totalTime * (endIndex - beginIndex) / indexSize) / Player.nowSouceNode.buffer.duration);
                             var currentTime = time + Player.offsetTime;
-                            if(Math.round(currentTime) > Player.currentTime){
+                            if (Math.round(currentTime) > Player.currentTime) {
                                 Player.currentTime = Math.round(currentTime);
                                 updateTimeCb(Player.currentTime);
                             }
-                        },1000);
+                        }, 1000);
                     }
                     // 播放
                     function _play(souceNode, startTime) {
-                    	if(!startTime || startTime<0){
-                    		startTime = 0;
-                    	}
-                        if(Player.audioContext.state == 'suspended'){
+                        if (!startTime || startTime < 0) {
+                            startTime = 0;
+                        }
+                        if (Player.audioContext.state == 'suspended') {
                             Player.audioContext.resume();
                         }
+                        souceNode.connect(souceNode.scriptNode);
+                        souceNode.scriptNode.connect(Player.audioContext.destination);
                         if (souceNode.start) {
                             souceNode.start(startTime);
                         } else {
                             souceNode.noteOn(startTime);
                         }
-                        _startPlayTimeInterval(souceNode);
-                    }
-                    // 播放计时器(onended有稍微误差)
-                    function _startPlayTimeInterval(souceNode) {
-                        var context = souceNode.context;
-                        var beginTime = context.currentTime;
-                        clearInterval(Player.timeoutIds.nodePlayTimoutId);
-                        Player.timeoutIds.nodePlayTimoutId = setInterval(function() {
-                            var startTime = souceNode.startTime || 0;
-                            if (context.currentTime - beginTime + 0.1 > souceNode.buffer.duration) {
-                                _finish(souceNode, context.currentTime + souceNode.buffer.duration - (context.currentTime - beginTime));
-                            }
-                        }, 50);
                     }
                     // 完成后播放下一段
                     function _finish(souceNode, startTime) {
-                        clearInterval(Player.timeoutIds.nodePlayTimoutId);
                         souceNode.finished = true;
                         if (souceNode.endIndex == indexSize - 1) {
                             Player.audioContext.suspend();
@@ -442,7 +449,7 @@
                             if (souceNodeQueue.length > 0) {
                                 var newSouceNode = souceNodeQueue.shift();
                                 log('continue')
-                                _play(newSouceNode, startTime - 0.05);
+                                _play(newSouceNode, startTime);
                                 log('play2:', newSouceNode.beginIndex, newSouceNode.endIndex);
                                 if (newSouceNode.endIndex + 1 < indexSize) {
                                     var timeout = newSouceNode.buffer.duration * 1000 / 2;
@@ -657,16 +664,16 @@
             var result = arrayBuffer;
             if (!excludeBegin) {
                 var begeinExtraLength = _getExtraLength(arrayBuffer);
-                if(beginIndex-1 >= 0 && Player.fileBlocks[beginIndex-1].rightDeledData){ // 修复头部数据
-            		var rightDeledData = Player.fileBlocks[beginIndex-1].rightDeledData;
-            		var newResult = new ArrayBuffer(result.byteLength + rightDeledData.byteLength);
-            		var uint8Array = new Uint8Array(newResult);
-            		uint8Array.set(new Uint8Array(rightDeledData),0);
-            		uint8Array.set(new Uint8Array(result),rightDeledData.byteLength);
-            		result = newResult;
-            	}else if (begeinExtraLength) {
-                	// 删除头部不完整数据
-	                result = arrayBuffer.slice(begeinExtraLength);
+                if (beginIndex - 1 >= 0 && Player.fileBlocks[beginIndex - 1].rightDeledData) { // 修复头部数据
+                    var rightDeledData = Player.fileBlocks[beginIndex - 1].rightDeledData;
+                    var newResult = new ArrayBuffer(result.byteLength + rightDeledData.byteLength);
+                    var uint8Array = new Uint8Array(newResult);
+                    uint8Array.set(new Uint8Array(rightDeledData), 0);
+                    uint8Array.set(new Uint8Array(result), rightDeledData.byteLength);
+                    result = newResult;
+                } else if (begeinExtraLength) {
+                    // 删除头部不完整数据
+                    result = arrayBuffer.slice(begeinExtraLength);
                 }
             }
             if (!excludeEnd) {
@@ -730,6 +737,7 @@
             Player.souceNodeQueue = [];
             Player._clearTimeout();
             if (Player.nowSouceNode) {
+                Player.nowSouceNode.scriptNode.disconnect();
                 Player.nowSouceNode.disconnect();
                 Player.nowSouceNode = null;
             }
@@ -750,7 +758,6 @@
             clearTimeout(iosPlayTimoutId);
             clearTimeout(Player.timeoutIds.decodeTimeoutId);
             clearTimeout(Player.timeoutIds.waiteForDecodeTimeoutId);
-            clearInterval(Player.timeoutIds.nodePlayTimoutId);
             clearInterval(Player.timeoutIds.updateTimeoutId);
         }
     }
@@ -762,10 +769,10 @@
     function Mp3Player(_url, opt) {
         url = _url;
         if (typeof opt == 'object') {
-            if(typeof opt.decrypt == 'function'){
+            if (typeof opt.decrypt == 'function') {
                 decrypt = opt.decrypt;
             }
-            if(typeof opt.updateTimeCb == 'function'){
+            if (typeof opt.updateTimeCb == 'function') {
                 updateTimeCb = opt.updateTimeCb;
             }
         }
