@@ -8,6 +8,7 @@
     var pauseCb = emptyCb; //暂停回调
     var waitingCb = emptyCb; //等待回调
     var playingCb = emptyCb; //等待结束回调
+    var endCb = emptyCb; //播放结束回调
     var iosClicked = false; //ios首次播放是否点击过
     var isIos = navigator.userAgent.indexOf('iPhone') > -1;
     var iosPlayTimoutId = null;
@@ -326,10 +327,8 @@
                     Player.audioContext = new Player.AudioContext();
                     Player.audioContext.onstatechange = function() {
                         log(Player.audioContext.state);
-                        if(Player.audioContext.state != 'running' && !Player.finished){
-                        	Player.changeState(null, null, true);
-                        }else{
-                        	Player.changeState();
+                        if(Player.finished && Player.audioContext.state == 'suspended'){
+                        	endCb();
                         }
                     }
                 } else if (Player.audioContext.state == 'suspended') {
@@ -452,8 +451,8 @@
                     function _finish(souceNode, startTime) {
                         souceNode.finished = true;
                         if (souceNode.endIndex == indexSize - 1) {
-                            Player.audioContext.suspend();
                             Player.finished = true;
+                            Player.audioContext.suspend();
                         } else {
                             if (souceNodeQueue.length > 0) {
                                 var newSouceNode = souceNodeQueue.shift();
@@ -476,6 +475,9 @@
                                 }
                                 Player.nowSouceNode = newSouceNode;
                             } else {
+                            	if(Player.audioContext.state == 'running'){
+	                                waitingCb();
+                            	}
                                 Player.audioContext.suspend(); // 等待解码时，先暂停
                                 // 下一段音频还没有解码完成
                                 Player.timeoutIds.waiteForDecodeTimeoutId = setTimeout(function() {
@@ -815,6 +817,9 @@
             if (typeof opt.playingCb == 'function') {
                 playingCb = opt.playingCb;
             }
+            if (typeof opt.endCb == 'function') {
+                endCb = opt.endCb;
+            }
         }
         this.play = function() {
             var self = this;
@@ -838,6 +843,7 @@
         this.pause = function() {
             if (Player.audioContext) {
                 Player.audioContext.suspend();
+                pauseCb();
             }
         }
         this.seek = function(percent) {
