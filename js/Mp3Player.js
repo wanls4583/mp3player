@@ -428,7 +428,7 @@
                         Player.timeoutIds.nodePlayTimoutId = setInterval(function() {
                             var startTime = souceNode.startTime || 0;
                             if (context.currentTime - beginTime + 0.1 > souceNode.buffer.duration) {
-                                _finish(souceNode, souceNode.buffer.duration - (context.currentTime - beginTime));
+                                _finish(souceNode, context.currentTime + souceNode.buffer.duration - (context.currentTime - beginTime));
                             }
                         }, 50);
                     }
