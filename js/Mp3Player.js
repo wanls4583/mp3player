@@ -1,6 +1,7 @@
 ! function(global) {
     var indexSize = 100; //区块个数
     var url = ''; //音频链接
+    var emptyUrl = ''; //空音频链接（用于触发IOS上音频播放）
     var emptyCb = function() {};
     var decrypt = emptyCb; //解密函数
     var updateTimeCb = emptyCb; //更新时间回调
@@ -298,6 +299,10 @@
             Player.nowSouceNode = null; //正在播放的资源节点
             Player.loadingPromise = null; //数据加载异步对象集合
             Player.decodeAudioData(0, Player.cacheFrameSize, true, Player.souceNodeQueue);
+            if(isIos){
+		        Player.audio = new Audio();
+		        Player.audio.src = emptyUrl;
+		    }
         },
         // 计时器
         timeoutIds: {
@@ -348,7 +353,7 @@
                     if (souceNodeQueue != Player.souceNodeQueue) { //防止seek时，之前未完成的异步解码对新队列的影响
                         return;
                     }
-                    var scriptNode = Player.audioContext.createScriptProcessor();
+                    var scriptNode = Player.audioContext.createScriptProcessor(4096);
                     souceNode = Player.audioContext.createBufferSource();
                     souceNode.scriptNode = scriptNode;
                     souceNode.buffer = buffer;
@@ -408,7 +413,7 @@
                             }
                         }
                         timeCount += inputBuffer.duration;
-                        if (!souceNode.finished && timeCount + inputBuffer.duration * 3 > souceNode.buffer.duration) {
+                        if (!souceNode.finished && timeCount + inputBuffer.duration * 2 > souceNode.buffer.duration) {
                             _finish(souceNode, audioProcessingEvent.playbackTime);
                         }
                     }
@@ -823,21 +828,22 @@
             if (typeof opt.endCb == 'function') {
                 endCb = opt.endCb;
             }
+            if (opt.emptyUrl){
+            	emptyUrl = opt.emptyUrl;
+            }
         }
         this.play = function() {
             var self = this;
             var nowSouceNode = Player.nowSouceNode;
             var audioContext = Player.audioContext
-            clearTimeout(iosPlayTimoutId);
-            if (isIos && !Player.firstPlayResolve) {
-                iosPlayTimoutId = setTimeout(function() {
-                    self.play();
-                }, 100);
+            if(isIos){
+            	Player.audio.play();
             }
-            if (isIos && nowSouceNode && !iosClicked) {
+            clearTimeout(iosPlayTimoutId);
+            if (isIos && Player.firstPlayResolve && !iosClicked) {
                 Player.firstPlayResolve();
                 iosClicked = true;
-            } else if (audioContext.state == 'suspend') {
+            }else if (audioContext.state == 'suspend') {
                 audioContext.resume();
             } else if (audioContext.state == 'closed') {
                 Player.seek(0);

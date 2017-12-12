@@ -20,8 +20,10 @@
     <button onclick="play()">播放</button>
     <script type="text/javascript" src="js/Mp3Player.js"></script>
     <script type="text/javascript">
+    var isIos = navigator.userAgent.indexOf('iPhone') > -1;
     var mp3 = new Mp3Player('test1.mp3',
         {
+            emptyUrl: 'empty.mp3',
             playCb: function(){
                 console.log('开始播放');
             },
