@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=750">
     <title>mp3音频解析</title>
     <script type="text/javascript">
     if (location.href.indexOf("eruda") != -1) {
@@ -12,18 +12,71 @@
         document.write("<scr" + "ipt>eruda.init();</scr" + "ipt>")
     }
     </script>
+    <style type="text/css">
+        .wrap{
+            margin-top: 100px;
+            text-align: center;
+            font-size: 24px;
+        }
+        #left_time{
+            display: inline-block;
+            width: 100px;
+            margin: 0 20px;
+            text-align: right;
+            vertical-align: middle;
+        }
+        #right_time{
+            display: inline-block;
+            width: 100px;
+            margin: 0 20px;
+            text-align: left;
+            vertical-align: middle;
+        }
+        #myRange{
+            width: 450px;
+            height: 50px;
+            -webkit-tap-highlight-color: transparent;
+            vertical-align: middle;
+        }
+        button{
+            margin-top: 100px;
+            font-size: 30px;
+        }
+    </style>
 </head>
 
 <body style="text-align: center">
-    <input value=0 type="range" id="myRange">
-    <p id="per"></p>
-    <button onclick="play()">播放</button>
+
+    <div class="wrap">
+        <span id="left_time">00:00:00</span><input value=0 type="range" id="myRange"><span id="right_time"></span>
+        <br>
+        <button onclick="play()">播放</button>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<button onclick="pause()">暂停</button>
+    </div>
+    
     <script type="text/javascript" src="js/Mp3Player.js"></script>
     <script type="text/javascript">
     var isIos = navigator.userAgent.indexOf('iPhone') > -1;
+    var totalTime = 0;
+    var myRange = document.getElementById("myRange");
     var mp3 = new Mp3Player('test1.mp3',
         {
             emptyUrl: 'empty.mp3',
+            loadedmetaCb: function(info){
+                var data = '';
+                totalTime = info.totalTime;
+                data = formatCountDown(totalTime);
+                date = data.hours + ':' + data.minutes + ':' + data.seconds;
+                document.getElementById("right_time").innerHTML = date;
+            },
+            updateTimeCb: function(seconds){
+                if(seconds>totalTime){
+                    return ;
+                }
+                var date = formatCountDown(seconds);
+                date = date.hours + ':' + date.minutes + ':' + date.seconds;
+                document.getElementById("left_time").innerHTML = date;
+                myRange.value = Math.round((seconds/totalTime)*100);
+            },
             playCb: function(){
                 console.log('开始播放');
             },
@@ -37,6 +90,8 @@
                 console.log('缓冲结束');
             },
             endCb: function(){
+                myRange.value = 0;
+                document.getElementById("left_time").innerHTML = '00:00:00'
                 console.log('播放结束');
             }
             // updateTimeCb: function(currentTime){
@@ -51,8 +106,7 @@
         }
     );
     document.getElementById("myRange").onchange = function() {
-        var percent = document.getElementById("myRange").value;
-        document.getElementById("per").innerHTML = percent;
+        var percent = myRange.value;
         mp3.seek(parseInt(percent));
     }
 
@@ -60,6 +114,31 @@
         mp3.play();
     }
 
+    function pause() {
+        mp3.pause();
+    }
+
+    function formatCountDown(seconds,noZero) {
+        var date = new Date();
+        date.setDate(0);
+        date.setHours(0);
+        date.setMinutes(0);
+        date.setSeconds(0);
+        date.setSeconds(seconds);
+        var data = {
+            date: Math.floor(seconds / (60 * 60 * 24)),
+            hours: date.getHours(),
+            minutes: date.getMinutes(),
+            seconds: date.getSeconds()
+        }
+        if(!noZero){
+            data.date = data.date >= 10 ? data.date : '0' + data.date;
+            data.hours = data.hours >= 10 ? data.hours : '0' + data.hours;
+            data.minutes = data.minutes >= 10 ? data.minutes : '0' + data.minutes;
+            data.seconds = data.seconds >= 10 ? data.seconds : '0' + data.seconds;
+        }
+        return data;
+    }
     </script>
 </body>
 

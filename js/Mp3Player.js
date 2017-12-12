@@ -4,6 +4,7 @@
     var emptyUrl = ''; //空音频链接（用于触发IOS上音频播放）
     var emptyCb = function() {};
     var decrypt = emptyCb; //解密函数
+    var loadedmetaCb = emptyCb; //元数据请求完毕回调
     var updateTimeCb = emptyCb; //更新时间回调
     var playCb = emptyCb; //播放回调
     var pauseCb = emptyCb; //暂停回调
@@ -209,6 +210,7 @@
                 mp3Info.totalTime = 1152 * mp3Info.totalFrame / samplingRate;
                 mp3Info.totalSize = _getTotalSize(vbrDataBuffer);
                 mp3Info.toc = _getToc(vbrDataBuffer);
+                loadedmetaCb(mp3Info); //元数据请求完毕回调
                 return mp3Info;
             }
         },
@@ -368,7 +370,6 @@
                     }
                     if (!Player.hasPlayed) {
                         Player.hasPlayed = true;
-                        Player.beginTime = Player.audioContext.currentTime;
                         Player.offsetTime = mp3Info.totalTime * souceNode.beginIndex / indexSize;
                         Player.currentTime = Math.round(Player.offsetTime);
                         if (souceNode.endIndex + 1 < indexSize) {
@@ -385,19 +386,19 @@
                         }
                         if (isIos && iosClicked || !isIos) {
                             _play(souceNode, 0);
+                            _startUpdateTimeoutId();
                             log('play1:', souceNode.beginIndex, souceNode.endIndex);
                         } else { // ios首次播放必须手动触发
                             new Promise(function(resolve) {
                                 Player.firstPlayResolve = resolve;
                             }).then(function() {
                                 _play(souceNode, 0);
+                                _startUpdateTimeoutId();
                                 log('play1:', souceNode.beginIndex, souceNode.endIndex);
                             })
                         }
                         souceNodeQueue.shift();
                         Player.nowSouceNode = souceNode;
-                        clearInterval(Player.timeoutIds.updateTimeoutId);
-                        _startUpdateTimeoutId();
                     }
                     var timeCount = 0;
                     scriptNode.onaudioprocess = function(audioProcessingEvent) {
@@ -425,11 +426,13 @@
                     }
                     // 开始更新计时器
                     function _startUpdateTimeoutId() {
+                        clearInterval(Player.timeoutIds.updateTimeoutId);
+                        Player.beginTime = Player.audioContext.currentTime;
                         Player.timeoutIds.updateTimeoutId = setInterval(function() {
                             var beginIndex = Player.nowSouceNode.beginIndex;
                             var endIndex = Player.nowSouceNode.endIndex;
                             //平衡音频时间
-                            var time = Player.audioContext.currentTime - Player.beginTime * ((mp3Info.totalTime * (endIndex - beginIndex) / indexSize) / Player.nowSouceNode.buffer.duration);
+                            var time = Player.audioContext.currentTime - Player.beginTime //* ((mp3Info.totalTime * (endIndex - beginIndex + 1) / indexSize) / Player.nowSouceNode.buffer.duration);
                             var currentTime = time + Player.offsetTime;
                             if (Math.round(currentTime) > Player.currentTime) {
                                 Player.currentTime = Math.round(currentTime);
@@ -458,7 +461,7 @@
                         souceNode.finished = true;
                         if (souceNode.endIndex == indexSize - 1) {
                             Player.finished = true;
-                            Player.audioContext.suspend();
+                            Player.audioContext.close();
                         } else {
                             if (souceNodeQueue.length > 0) {
                                 var newSouceNode = souceNodeQueue.shift();
@@ -828,6 +831,9 @@
             if (typeof opt.endCb == 'function') {
                 endCb = opt.endCb;
             }
+            if (typeof opt.loadedmetaCb == 'function'){
+                loadedmetaCb = opt.loadedmetaCb;
+            }
             if (opt.emptyUrl){
             	emptyUrl = opt.emptyUrl;
             }
@@ -843,7 +849,7 @@
             if (isIos && Player.firstPlayResolve && !iosClicked) {
                 Player.firstPlayResolve();
                 iosClicked = true;
-            }else if (audioContext.state == 'suspend') {
+            }else if (audioContext.state == 'suspended') {
                 audioContext.resume();
             } else if (audioContext.state == 'closed') {
                 Player.seek(0);
