@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>test2</title>
+</head>
+<body>
+<script type="text/javascript">
+	var audioContext = new (AudioContext||WebkitAudioContext)();
+	var request = new XMLHttpRequest();
+	request.open('GET', 'test.mp3', true);
+    request.responseType = 'arraybuffer';
+	request.onload = function(){
+		var arrayBuffer = request.response;
+		// 音频二进制数据解码
+		audioContext.decodeAudioData(arrayBuffer, function(buffer){
+
+			// 用于控制音频的播放
+			var bufferSourceNode = audioContext.createBufferSource();
+
+			// 将解码后PCM（设备可直接播放的数据流）流赋值给buffer属性
+			bufferSourceNode.buffer = buffer;
+
+			// 将播放节点连接到播放设备
+			bufferSourceNode.connect(audioContext.destination);
+
+			// 播放
+			bufferSourceNode.start();
+		});
+	}
+	request.send();
+</script>
+</body>
+</html>

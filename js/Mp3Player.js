@@ -1,5 +1,5 @@
 ! function(global) {
-    var indexSize = 100; //区块个数
+    var indexSize = 100; //区块个数（根据时间平均分为100份）
     var url = ''; //音频链接
     var emptyUrl = ''; //空音频链接（用于触发IOS上音频播放）
     var emptyCb = function() {};
@@ -50,7 +50,9 @@
     var MP3InfoAnalysis = {
         init: function() {
             this.mp3Info = {}; //存储mp3相关的信息
-            return new Promise(MP3InfoAnalysis.loadHeaderInfo).then(MP3InfoAnalysis.loadFirstFrame).then(MP3InfoAnalysis.getInfo);
+            return new Promise(MP3InfoAnalysis.loadHeaderInfo)
+            .then(MP3InfoAnalysis.loadFirstFrame)
+            .then(MP3InfoAnalysis.getInfo);
         },
         //ajax获取音频头部标签头(32B)
         loadHeaderInfo: function(resolve, reject) {
@@ -697,7 +699,7 @@
             }
             return begin;
         },
-        //删除数据块头尾损坏数据
+        //修复数据块头尾损坏数据（分割后，头部数据可能不是数据帧的帧头开始，需要修复）
         fixFileBlock: function(arrayBuffer, beginIndex, endIndex, excludeBegin, excludeEnd, offset) {
             offset = offset || 0;
             var result = arrayBuffer;

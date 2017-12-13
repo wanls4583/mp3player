@@ -35,12 +35,12 @@ function sendFile(realPath,req,res){
             if (range.indexOf(",") != -1) { //这里只处理了一个分段的情况
                 return false;
             }
-            //range大约长这样子：bytes=0-255[,256-511]
+            //range：bytes=0-255[,256-511]
             var parts = range.replace(/bytes=/, '').split("-");
             var partiaStart = parts[0];
             var partialEnd = parts[1];
             var start = parseInt(partiaStart); //起始位置
-            //如果是bytes=0-，就是整个文件大小了
+            //如果是bytes=0-，就是整个文件大小
             var end = partialEnd ? parseInt(partialEnd) : size - 1;
             if (isNaN(start) || isNaN(end)) return false;
             //分段的大小
@@ -51,17 +51,17 @@ function sendFile(realPath,req,res){
         if (rangeData) {
             //createReadStream原生支持range
             var raw = fs.createReadStream(realPath, { 'start': rangeData.start, 'end': rangeData.end });
-            //状态码当然是206了
+            //状态码206
             res.writeHead(206, 'Partial Content', {
                 'Content-Type': mime.getType(path.basename(realPath)),
                 'Content-Range': 'bytes ' + rangeData.start + '-' + rangeData.end + '/' + size,
                 'Content-Length': rangeData.chunkSize
             });
             raw.on('data',function(chunk){
-            	//加密数据
-            	// for(let i=0; i<chunk.length; i++){
-            	// 	chunk[i] = chunk[i]+1;
-            	// }
+            	// 加密数据
+            	for(let i=0; i<chunk.length; i++){
+            		chunk[i] = chunk[i]^255;
+            	}
             	res.write(chunk);
             });
             raw.on('end', function(){
