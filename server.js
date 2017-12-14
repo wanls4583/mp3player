@@ -59,9 +59,9 @@ function sendFile(realPath,req,res){
             });
             raw.on('data',function(chunk){
             	// 加密数据
-            	for(let i=0; i<chunk.length; i++){
-            		chunk[i] = chunk[i]^255;
-            	}
+            	// for(let i=0; i<chunk.length; i++){
+            	// 	chunk[i] = chunk[i]^255;
+            	// }
             	res.write(chunk);
             });
             raw.on('end', function(){

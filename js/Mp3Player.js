@@ -414,9 +414,11 @@
                                 outputData[sample] = inputData[sample];
                             }
                         }
-                        timeCount += inputBuffer.duration;
-                        if (!souceNode.finished && timeCount + inputBuffer.duration * 2 > souceNode.buffer.duration) {
-                            _finish(souceNode, audioProcessingEvent.playbackTime);
+                        if(Player.audioContext.state == 'running'){
+                            timeCount += inputBuffer.duration;
+                            if (!souceNode.finished && timeCount + inputBuffer.duration*1.5 > souceNode.buffer.duration) {
+                                _finish(souceNode, audioProcessingEvent.playbackTime);
+                            }
                         }
                     }
                     souceNode.onended = function() {
@@ -568,11 +570,19 @@
                     //缓存数据块
                     for (var i = beginIndex; i < beginIndex + minSize && i < indexSize; i++) {
                         if (audioInfo.toc) { //VBR编码模式
-                            end = (begin + (Player.getRangeBeginByIndex(i + 1) - Player.getRangeBeginByIndex(i))) >> 0;
+                            if(i+1>=indexSize || i+1>=beginIndex + minSize){
+                                end = arrayBuffer.byteLength;
+                            }else{
+                                end = (begin + (Player.getRangeBeginByIndex(i + 1) - Player.getRangeBeginByIndex(i))) >> 0;
+                            }
                             Player.fileBlocks[i] = arrayBuffer.slice(begin, end);
                             begin = end;
                         } else { //CBR编码模式
-                            end = begin + (audioInfo.fileSize - audioInfo.headerLength) / indexSize;
+                            if(i+1>=indexSize || i+1>=beginIndex + minSize){
+                                end = arrayBuffer.byteLength;
+                            }else{
+                                end = begin + (audioInfo.fileSize - audioInfo.headerLength) / indexSize;
+                            }
                             Player.fileBlocks[i] = arrayBuffer.slice(begin, end);
                             begin = end;
                         }
@@ -692,7 +702,7 @@
                     begin = ((mp3Info.toc[index] / 256 * mp3Info.totalSize) >> 0) + mp3Info.headerLength;
                 }
             } else {
-                begin = (mp3Info.fileSize * index/indexSize + mp3Info.headerLength) >> 0;
+                begin = ((mp3Info.fileSize - mp3Info.headerLength) * index/indexSize + mp3Info.headerLength) >> 0;
             }
             if (begin > mp3Info.fileSize) {
                 begin = mp3Info.fileSize
