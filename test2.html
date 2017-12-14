@@ -7,26 +7,40 @@
 <script type="text/javascript">
 	var audioContext = new (AudioContext||WebkitAudioContext)();
 	var request = new XMLHttpRequest();
+
 	request.open('GET', 'test.mp3', true);
     request.responseType = 'arraybuffer';
 	request.onload = function(){
 		var arrayBuffer = request.response;
 		// 音频二进制数据解码
 		audioContext.decodeAudioData(arrayBuffer, function(buffer){
+			var myArrayBuffer = audioContext.createBuffer(2, buffer.length*2, buffer.sampleRate);
+			var data0 = buffer.getChannelData(0);
+			var data1 = buffer.getChannelData(0);
 
+			// 实现重复播放两遍
+			myArrayBuffer.copyToChannel(data0,0,0)
+			myArrayBuffer.copyToChannel(data1,1,0)
+			myArrayBuffer.copyToChannel(data0,0,buffer.length)
+			myArrayBuffer.copyToChannel(data1,1,buffer.length)
 			// 用于控制音频的播放
 			var bufferSourceNode = audioContext.createBufferSource();
 
 			// 将解码后PCM（设备可直接播放的数据流）流赋值给buffer属性
-			bufferSourceNode.buffer = buffer;
+			bufferSourceNode.buffer = myArrayBuffer;
 
 			// 将播放节点连接到播放设备
 			bufferSourceNode.connect(audioContext.destination);
 
 			// 播放
 			bufferSourceNode.start();
+			var begin = new Date().getTime();
+			bufferSourceNode.onended = function(){
+				console.log('end',new Date().getTime()-begin);
+			}
 		});
 	}
+	request.setRequestHeader("Range", 'bytes=100000-200000');
 	request.send();
 </script>
 </body>
