@@ -297,13 +297,14 @@
             Player.audioContext.onstatechange = function() {
                 log(Player.audioContext.state);
                 if(Player.finished && Player.audioContext.state == 'suspended'){
+                    Player.hasPlayed = false;
                     endCb();
                 }
             }
             Player.fileBlocks = new Array(100); // 音频数据分区
             Player.cacheFrameSize = 10; // 每次加载的分区数
             Player.indexSize = 100; // 索引个数
-            Player.hasPlayed = false; // 是否已经开始播放
+            Player.seeking = false; // 是否已经开始播放
             Player.totalBuffer = null; // 音频资源节点队列
             Player.nowSouceNode = null; // 正在播放的资源节点
             Player.loadingPromise = null; // 数据加载异步对象集合
@@ -371,12 +372,15 @@
                     if (ifDebug()) {
                         log('解码时间:', new Date().getTime() - decodeBeginTime, 'ms');
                     }
-                    if (!Player.hasPlayed) {
-                        Player.hasPlayed = true;
+                    if (!Player.seeking) {
+                        Player.seeking = true;
                         Player.totalBuffer.dataBegin = Player.totalBuffer.dataEnd = (totalBuffer.length * result.beginIndex / indexSize)>>0;
                         Player._copyPCMData(buffer);
-                        Player._play(Player.totalBuffer.dataBegin / Player.totalBuffer.length * mp3Info.totalTime);
                         if (result.endIndex + 1 < indexSize) {
+                            var nextDecodeTime = buffer.duration * 1000 / 2;
+                            if(nextDecodeTime > 20000){
+                                nextDecodeTime = 20000;
+                            }
                             Player.timeoutIds.decodeTimeoutId = setTimeout(function() {
                                 if (Player.loadingPromise) {
                                     Player.loadingPromise.stopNextLoad = true;
@@ -386,7 +390,7 @@
                                 } else {
                                     Player.decodeAudioData(result.endIndex + 1, minSize, null, totalBuffer);
                                 }
-                            }, buffer.duration * 1000 / 2);
+                            }, nextDecodeTime);
                         }
                     }else{
                         Player._copyPCMData(buffer);
@@ -416,8 +420,8 @@
             if (Player.audioContext.state == 'suspended') {
                 Player.audioContext.resume();
             }
-            if(Player.souceNode){
-                Player.souceNode.disconnect();
+            if(Player.nowSouceNode){
+                Player.nowSouceNode.disconnect();
             }
             var souceNode = Player.audioContext.createBufferSource();
             souceNode.buffer = Player.totalBuffer;
@@ -433,7 +437,8 @@
             } else {
                 souceNode.noteOn(0, startTime);
             }
-            Player.souceNode = souceNode;
+            Player.hasPlayed = true;
+            Player.nowSouceNode = souceNode;
             Player._startUpdateTimeoutId();
         },
         // 开始更新计时器
@@ -769,11 +774,11 @@
                 }
             }
             
-            Player.hasPlayed = false;
+            Player.seeking = false;
             Player.finished = false;
             Player._clearTimeout();
-            if (Player.souceNode) {
-                Player.souceNode.disconnect();
+            if (Player.nowSouceNode) {
+                Player.nowSouceNode.disconnect();
             }
             Player.totalBuffer = totalBuffer = Player.audioContext.createBuffer(Player.numberOfChannels, Player.bufferLength, Player.sampleRate);
             if (Player.loadingPromise) { //是否有数据正在加载
@@ -830,14 +835,13 @@
         this.play = function() {
             var self = this;
             var nowSouceNode = Player.nowSouceNode;
-            var audioContext = Player.audioContext
+            var audioContext = Player.audioContext;
+            var audioInfo = Player.audioInfo;
             if(isIos){
             	Player.audio.play();
             }
-            clearTimeout(iosPlayTimoutId);
-            if (isIos && Player.firstPlayResolve && !iosClicked) {
-                Player.firstPlayResolve();
-                iosClicked = true;
+            if(!Player.hasPlayed){
+                Player._play(Player.totalBuffer.dataBegin / Player.totalBuffer.length * audioInfo.totalTime);
             }else if (audioContext.state == 'suspended') {
                 if(Player.finished){
                     Player.seek(0);
