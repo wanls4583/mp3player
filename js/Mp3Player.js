@@ -388,7 +388,6 @@
                         if(nextDecodeTime > 20000){
                             nextDecodeTime = 20000;
                         }
-                        nextDecodeTime = 0;
                         clearTimeout(Player.timeoutIds.decodeTimeoutId);
                         Player.timeoutIds.decodeTimeoutId = setTimeout(function() {
                             if (Player.loadingPromise) {
@@ -410,6 +409,29 @@
         // 复制PCM流
         _copyPCMData: function(_buffer){
             var offset = Player.totalBuffer.dataEnd;
+            // var nextBegin = _buffer.getChannelData(0).slice(0,Player.sampleRate);
+            // var preEnd = Player.totalBuffer.getChannelData(0).slice(Player.totalBuffer.dataEnd-Player.sampleRate,Player.totalBuffer.dataEnd);
+            // if(nextBegin.length >= Player.sampleRate && preEnd.length >= Player.sampleRate){
+            //     var nextStrs = [];
+            //     var preStrs = [];
+            //     nextBegin.map(function(currentValue,index){
+            //         nextStrs.push(currentValue.toFixed(6));
+            //     });
+            //     preEnd.map(function(currentValue,index){
+            //         preStrs.push(currentValue.toFixed(6));
+            //     });
+            //     var nextStr = '';
+            //     var preStr = preStrs.join(',');
+            //     for(var i=0; i<nextStrs.length; i+=20){
+            //         nextStr = nextStrs.slice(i,i+20).join(',');
+            //         if(preStr.indexOf(nextStr)>-1){
+            //             console.log(preStr.slice(0,preStr.indexOf(nextStr)).split(',').length);
+            //             console.log('yes',i);
+            //             break;
+            //         }
+            //     }
+            // }
+           
             for(var i=0; i<_buffer.numberOfChannels; i++){
                 Player.totalBuffer.copyToChannel(_buffer.getChannelData(i),i,offset);
             }
@@ -454,7 +476,7 @@
                     Player.currentTime = Math.round(currentTime);
                     updateTimeCb(Player.currentTime);
                 }
-                if(Player.totalBuffer.endIndex < indexSize-1 && (time+2) * Player.sampleRate > Player.totalBuffer.dataEnd - Player.totalBuffer.dataBegin){
+                if(!Player.waiting && Player.totalBuffer.endIndex < indexSize-1 && (currentTime+2) * Player.sampleRate > Player.totalBuffer.dataEnd){
                     Player.waiting = true;
                     Player.audioContext.suspend();
                     waitingCb();
@@ -862,7 +884,7 @@
                     return ;
                 }
                 Player._play(Player.totalBuffer.dataBegin / Player.totalBuffer.length * audioInfo.totalTime);
-            }else if (audioContext.state == 'suspended') {
+            }else if (Player.pause == true && !Player.waiting) {
                 if(Player.finished){
                     Player.seek(0);
                 }else{
@@ -872,7 +894,7 @@
             }
         }
         this.pause = function() {
-            if (Player.audioContext) {
+            if (Player.audioContext && !Player.waiting) {
                 Player.pause = true;
                 Player.audioContext.suspend();
                 pauseCb();
