@@ -380,22 +380,6 @@
                         if(Player.hasPlayed){
                             Player._play(Player.totalBuffer.dataBegin / Player.totalBuffer.length * audioInfo.totalTime);
                         }
-                        if (result.endIndex + 1 < indexSize) {
-                            var nextDecodeTime = buffer.duration * 1000 / 2;
-                            if(nextDecodeTime > 20000){
-                                nextDecodeTime = 20000;
-                            }
-                            Player.timeoutIds.decodeTimeoutId = setTimeout(function() {
-                                if (Player.loadingPromise) {
-                                    Player.loadingPromise.stopNextLoad = true;
-                                    Player.loadingPromise.then(function() {
-                                        Player.decodeAudioData(result.endIndex + 1, minSize, null, totalBuffer);
-                                    })
-                                } else {
-                                    Player.decodeAudioData(result.endIndex + 1, minSize, null, totalBuffer);
-                                }
-                            }, nextDecodeTime);
-                        }
                     }else{
                         Player._copyPCMData(buffer);
                         if(Player.waiting){
@@ -403,9 +387,25 @@
                             Player.audioContext.resume();
                         }
                     }
-                    
+                    if (result.endIndex + 1 < indexSize) {
+                        var nextDecodeTime = buffer.duration * 1000 / 2;
+                        if(nextDecodeTime > 20000){
+                            nextDecodeTime = 20000;
+                        }
+                        clearTimeout(Player.timeoutIds.decodeTimeoutId);
+                        Player.timeoutIds.decodeTimeoutId = setTimeout(function() {
+                            if (Player.loadingPromise) {
+                                Player.loadingPromise.stopNextLoad = true;
+                                Player.loadingPromise.then(function() {
+                                    Player.decodeAudioData(result.endIndex + 1, minSize, null, totalBuffer);
+                                })
+                            } else {
+                                Player.decodeAudioData(result.endIndex + 1, minSize, null, totalBuffer);
+                            }
+                        }, nextDecodeTime);
+                    }
                 }).catch(function(e) {
-                    log(index, "解码失败");
+                    log(index, "解码失败", e);
                 });
                 return result;
             });
@@ -457,7 +457,7 @@
                     Player.currentTime = Math.round(currentTime);
                     updateTimeCb(Player.currentTime);
                 }
-                if((time+2) * Player.sampleRate > Player.bufferLength.dataEnd - Player.bufferLength.dataBegin){
+                if((time+2) * Player.sampleRate > Player.totalBuffer.dataEnd - Player.totalBuffer.dataBegin){
                     Player.waiting = true;
                     Player.audioContext.suspend();
                     waitingCb();
