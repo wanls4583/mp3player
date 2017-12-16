@@ -298,10 +298,6 @@
             Player.audioContext = new (window.AudioContext || window.webkitAudioContext)(); // 音频上下文对象
             Player.audioContext.onstatechange = function() {
                 log(Player.audioContext.state);
-                if(Player.finished && Player.audioContext.state == 'suspended'){
-                    Player.hasPlayed = false;
-                    endCb();
-                }
             }
             Player.fileBlocks = new Array(100); // 音频数据分区
             Player.cacheFrameSize = 10; // 每次加载的分区数
@@ -340,9 +336,6 @@
                 }
                 Player.changeState(false);
                 Player.loading = false;
-                if (Player.audioContext.state == 'suspended') {
-                    Player.audioContext.resume();
-                }
                 if (!Player.finished && (!Player.nowSouceNode || Player.nowSouceNode && Player.nowSouceNode.finished)) {
                     Player.changeState(null, true);
                     Player.decoding = true;
@@ -384,14 +377,18 @@
                         Player._copyPCMData(buffer);
                         if(Player.waiting){
                             Player.waiting = false;
-                            Player.audioContext.resume();
+                            if(!Player.pause){ // 从等待状态唤醒
+                                Player.audioContext.resume();
+                            }
                         }
                     }
+                    Player.totalBuffer.endIndex = result.endIndex;
                     if (result.endIndex + 1 < indexSize) {
                         var nextDecodeTime = buffer.duration * 1000 / 2;
                         if(nextDecodeTime > 20000){
                             nextDecodeTime = 20000;
                         }
+                        nextDecodeTime = 0;
                         clearTimeout(Player.timeoutIds.decodeTimeoutId);
                         Player.timeoutIds.decodeTimeoutId = setTimeout(function() {
                             if (Player.loadingPromise) {
@@ -428,22 +425,19 @@
             if(Player.nowSouceNode){
                 Player.nowSouceNode.disconnect();
             }
-            var souceNode = Player.audioContext.createBufferSource();
-            souceNode.buffer = Player.totalBuffer;
-            souceNode.connect(Player.audioContext.destination);
-            souceNode.onended = function() {
-                souceNode.disconnect();
-                Player.finished = true;
-                Player._clearTimeout();
-                Player.audioContext.suspend();
+            var sourceNode = Player.audioContext.createBufferSource();
+            sourceNode.buffer = Player.totalBuffer;
+            sourceNode.connect(Player.audioContext.destination);
+            sourceNode.onended = function() {
+                Player._end();
             }
-            if (souceNode.start) {
-                souceNode.start(0, startTime);
+            if (sourceNode.start) {
+                sourceNode.start(0, startTime);
             } else {
-                souceNode.noteOn(0, startTime);
+                sourceNode.noteOn(0, startTime);
             }
             Player.hasPlayed = true;
-            Player.nowSouceNode = souceNode;
+            Player.nowSouceNode = sourceNode;
             Player._startUpdateTimeoutId();
         },
         // 开始更新计时器
@@ -453,16 +447,26 @@
             Player.timeoutIds.updateTimeoutId = setInterval(function() {
                 var time = Player.audioContext.currentTime - Player.beginTime;
                 var currentTime = time + Player.offsetTime;
+                if(Player.audioInfo.toc && currentTime > Player.audioInfo.totalTime){
+                    Player._end();
+                }
                 if (Math.round(currentTime) > Player.currentTime) {
                     Player.currentTime = Math.round(currentTime);
                     updateTimeCb(Player.currentTime);
                 }
-                if((time+2) * Player.sampleRate > Player.totalBuffer.dataEnd - Player.totalBuffer.dataBegin){
+                if(Player.totalBuffer.endIndex < indexSize-1 && (time+2) * Player.sampleRate > Player.totalBuffer.dataEnd - Player.totalBuffer.dataBegin){
                     Player.waiting = true;
                     Player.audioContext.suspend();
                     waitingCb();
                 }
             }, 1000);
+        },
+        _end: function(){
+            Player.nowSouceNode.disconnect();
+            Player.finished = true;
+            Player._clearTimeout();
+            Player.audioContext.suspend();
+            endCb();
         },
         //获取数据帧
         loadFrame: function(index, minSize, negative) {
@@ -588,7 +592,6 @@
             var result = null;
             var endIndex = index;
             var indexLength = Player.fileBlocks.length;
-            var audioInfo = Player.audioInfo;
             if(ifDebug()){
                 var joinBegin = new Date().getTime();
                 log('join', index);
@@ -621,12 +624,8 @@
                     testLog('byteLength1:', tmp.length);
                 }
             }
-            //删除头部与尾部损坏数据
-            if(audioInfo.toc){
-                result = Player.fixFileBlock(result, index, endIndex, false, false, 0, 10);
-            }else{
-                result = Player.fixFileBlock(result, index, endIndex, false, false, 0, 15);
-            }
+            //删除尾部损坏数据
+            result = Player.fixFileBlock(result, index, endIndex, false, false, 0, 6);
             if (ifTest()) {
                 var tmp = new Uint8Array(result);
                 if(tmp.length > 0){
@@ -694,15 +693,20 @@
                 }
             }
             if (!excludeEnd) {
-                var endExtraLength = _getExtraLength(arrayBuffer, true);
+                var endExtraLength = _getExtraLength(arrayBuffer, true, 1);
+                var originResult = result;
                 if (endExtraLength) { // 删除尾部不完整数据
                     Player.fileBlocks[endIndex].rightDeledData = result.slice(result.byteLength - endExtraLength);
                     result = result.slice(0, result.byteLength - endExtraLength);
                 }
+                endExtraLength = _getExtraLength(arrayBuffer, true, endFrameSize);
+                if (endExtraLength) { // 存储endFrameSize个帧给接下来的帧使用
+                    Player.fileBlocks[endIndex].rightDeledData = originResult.slice(originResult.byteLength - endExtraLength);
+                }
             }
             return result;
             //获取数据块头部或尾部多余的数据长度(字节)
-            function _getExtraLength(arrayBuffer, reverse) {
+            function _getExtraLength(arrayBuffer, reverse, frameSize) {
             	var audioInfo = Player.audioInfo;
                 var i = 0;
                 var count = 200;
@@ -741,7 +745,7 @@
                         }
                         bufferStr = bufferStr.toUpperCase();
                         match = bufferStr.match(flagReg);
-                        if (match && match.length >= endFrameSize) { // 对于MP3格式来说，后面的帧可能依赖于前面的某几帧
+                        if (match && match.length >= frameSize) { // 对于MP3格式来说，后面的帧可能依赖于前面的某几帧
                             return bufferStr.length / 2 - bufferStr.indexOf(audioInfo.frameHeaderFlag) / 2;
                         }
                         if (i == 0) {
@@ -760,9 +764,7 @@
         	if(typeof decoding != 'boolean'){
         		decoding = Player.decoding;
         	}
-        	if(pause && !Player.loading && !Player.decoding){
-        		waitingCb();
-        	}else if(!Player.loading && !Player.decoding && (loading || decoding)){
+        	if(!Player.loading && !Player.decoding && (loading || decoding)){
         		waitingCb();
         	}else if(!Player.loading && Player.decoding && !decoding){
         		playingCb();
@@ -864,12 +866,14 @@
                 if(Player.finished){
                     Player.seek(0);
                 }else{
+                    Player.pause = false;
                     audioContext.resume();
                 }
             }
         }
         this.pause = function() {
             if (Player.audioContext) {
+                Player.pause = true;
                 Player.audioContext.suspend();
                 pauseCb();
             }
