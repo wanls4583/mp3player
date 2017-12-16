@@ -139,6 +139,7 @@
             var uint8Array = null;
             var vbrDataBuffer = null;
             var bitRate = MP3InfoAnalysis.getBitRate(arrayBuffer);
+            var samplingRate = MP3InfoAnalysis.getSamplingRate(arrayBuffer);
             var headerFlag = '';
             uint8Array = new Uint8Array(arrayBuffer);
             //转换成16进制码
@@ -154,8 +155,9 @@
             headerFlag = MP3InfoAnalysis.hasVbrHeader(arrayBuffer);
             if (headerFlag != -1) { //存在Info头或者Xing头
                 vbrDataBuffer = arrayBuffer.slice(headerFlag / 2);
+                _getInfo(vbrDataBuffer);
                 loadedmetaCb(mp3Info); //元数据请求完毕回调
-                return _getInfo(vbrDataBuffer);
+                return mp3Info;
             } else { //纯CBR编码
                 var totalTime = (mp3Info.fileSize - mp3Info.headerLength) / bitRate * 8;
                 mp3Info.totalTime = totalTime;
@@ -837,10 +839,17 @@
             var nowSouceNode = Player.nowSouceNode;
             var audioContext = Player.audioContext;
             var audioInfo = Player.audioInfo;
+            var playTimoutId = null;
             if(isIos){
             	Player.audio.play();
             }
             if(!Player.hasPlayed){
+                if(!Player.totalBuffer || typeof Player.totalBuffer.dataBegin == undefined){
+                    playTimoutId = setTimeout(function(){
+                        self.play();
+                    },500);
+                    return ;
+                }
                 Player._play(Player.totalBuffer.dataBegin / Player.totalBuffer.length * audioInfo.totalTime);
             }else if (audioContext.state == 'suspended') {
                 if(Player.finished){
