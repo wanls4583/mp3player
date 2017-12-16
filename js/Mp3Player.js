@@ -379,6 +379,7 @@
                             Player.waiting = false;
                             if(!Player.pause){ // 从等待状态唤醒
                                 Player.audioContext.resume();
+                                playingCb();
                             }
                         }
                     }
