@@ -9,63 +9,64 @@
     <script type="text/javascript">
     var audioContext = new(AudioContext || WebkitAudioContext)();
     var myArrayBuffer;
-    
-    	new Promise(function(resolve){
-    		load(162582, 1657200, function(arrayBuffer) {
-		    	console.log(1,arrayBuffer.byteLength);
-		    	var endExtraLength = _getExtraLength(arrayBuffer,true);
-		    	var extraBuffer = arrayBuffer.slice(arrayBuffer.byteLength - endExtraLength );
-		    	arrayBuffer = arrayBuffer.slice(0, arrayBuffer.byteLength - endExtraLength)
-		        // 音频二进制数据解码
-		        audioContext.decodeAudioData(arrayBuffer, function(buffer) {
-
-		            var data0 = buffer.getChannelData(0);
-		            var data1 = buffer.getChannelData(1);
-		            myArrayBuffer = audioContext.createBuffer(2, buffer.length * 3, buffer.sampleRate);
-		            myArrayBuffer.copyToChannel(data0, 0, 0)
-		            myArrayBuffer.copyToChannel(data1, 1, 0)
-
-		            var length = buffer.length;
-		            resolve({
-		            	length: length,
-		            	extraBuffer: extraBuffer
-		            })
-		            
-		        });
-		    })
-    	}).then(function(obj){
-    		load(1657201, 3161820, function(_arrayBuffer) {
-            	console.log(3,_arrayBuffer.byteLength);
-            	arrayBuffer = new ArrayBuffer(_arrayBuffer.byteLength+obj.extraBuffer.byteLength);
-            	var uint8Array = new Uint8Array(arrayBuffer);
-            	var extraUint8Array = new Uint8Array(obj.extraBuffer);
-            	var _arr = new Uint8Array(_arrayBuffer);
-                uint8Array.set(extraUint8Array, 0);
-                uint8Array.set(_arr, obj.extraBuffer.byteLength);
-                console.log(4,arrayBuffer.byteLength);
-
-                audioContext.decodeAudioData(arrayBuffer, function(buffer) {
-                    var data0 = buffer.getChannelData(0);
-                    var data1 = buffer.getChannelData(1);
-                    // 实现重复播放两遍
-                    myArrayBuffer.copyToChannel(data0, 0, obj.length)
-                    myArrayBuffer.copyToChannel(data1, 1, obj.length)
-                    // 用于控制音频的播放
-                    var bufferSourceNode = audioContext.createBufferSource();
-                    // 将解码后PCM（设备可直接播放的数据流）流赋值给buffer属性
-                    bufferSourceNode.buffer = myArrayBuffer;
-                    // 将播放节点连接到播放设备
-                    bufferSourceNode.connect(audioContext.destination);
-                    // 播放
-                    bufferSourceNode.start(0, 60);
-                    var begin = new Date().getTime();
-                    bufferSourceNode.onended = function() {
-                        console.log('end', new Date().getTime() - begin);
-                    }
+    var lengthArr = [];
+    new Promise(function(resolve) {
+        load(162582, 1657200, function(arrayBuffer) {
+            console.log(1, arrayBuffer.byteLength);
+            lengthArr.push(arrayBuffer.byteLength);
+            var endExtraLength = _getExtraLength(arrayBuffer, true);
+            var extraBuffer = arrayBuffer.slice(arrayBuffer.byteLength - endExtraLength);
+            arrayBuffer = arrayBuffer.slice(0, arrayBuffer.byteLength - endExtraLength);
+            console.log(2, arrayBuffer.byteLength);
+            lengthArr.push(arrayBuffer.byteLength);
+            // 音频二进制数据解码
+            audioContext.decodeAudioData(arrayBuffer, function(buffer) {
+                var data0 = buffer.getChannelData(0);
+                var data1 = buffer.getChannelData(1);
+                myArrayBuffer = audioContext.createBuffer(2, buffer.length + buffer.sampleRate, buffer.sampleRate);
+                myArrayBuffer.copyToChannel(data0, 0, 0)
+                myArrayBuffer.copyToChannel(data1, 1, 0)
+                var length = buffer.length;
+                resolve({
+                    length: length,
+                    extraBuffer: extraBuffer
                 })
+            });
+        })
+    }).then(function(obj) {
+        load(1657201, 3161820, function(_arrayBuffer) {
+            console.log(3, _arrayBuffer.byteLength);
+            lengthArr.push(_arrayBuffer.byteLength);
+            var arrayBuffer = new ArrayBuffer(_arrayBuffer.byteLength + obj.extraBuffer.byteLength);
+            var uint8Array = new Uint8Array(arrayBuffer);
+            var extraUint8Array = new Uint8Array(obj.extraBuffer);
+            var _arr = new Uint8Array(_arrayBuffer);
+            uint8Array.set(extraUint8Array, 0);
+            uint8Array.set(_arr, obj.extraBuffer.byteLength);
+            console.log(4, arrayBuffer.byteLength);
+            lengthArr.push(arrayBuffer.byteLength);
+            console.log(lengthArr[0] + lengthArr[2] == lengthArr[1] + lengthArr[3])
+            audioContext.decodeAudioData(arrayBuffer, function(buffer) {
+                var data0 = buffer.getChannelData(0);
+                var data1 = buffer.getChannelData(1);
+                // 实现重复播放两遍
+                myArrayBuffer.copyToChannel(data0, 0, obj.length)
+                myArrayBuffer.copyToChannel(data1, 1, obj.length)
+                // 用于控制音频的播放
+                var bufferSourceNode = audioContext.createBufferSource();
+                // 将解码后PCM（设备可直接播放的数据流）流赋值给buffer属性
+                bufferSourceNode.buffer = myArrayBuffer;
+                // 将播放节点连接到播放设备
+                bufferSourceNode.connect(audioContext.destination);
+                // 播放
+                bufferSourceNode.start(0, 60);
+                var begin = new Date().getTime();
+                bufferSourceNode.onended = function() {
+                    console.log('end', new Date().getTime() - begin);
+                }
             })
-    	})
-    
+        })
+    })
 
     function load(begin, end, cb) {
         var request = new XMLHttpRequest();

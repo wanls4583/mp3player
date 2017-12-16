@@ -348,7 +348,7 @@
                 if (ifDebug()) {
                     var decodeBeginTime = new Date().getTime();
                 }
-                Player.audioContext.decodeAudioData(result.arrayBuffer, function(buffer) { //解码成功则调用此函数，参数buffer为解码后得到的结果
+                Player.audioContext.decodeAudioData(result.arrayBuffer).then(function(buffer) { //使用旧版回调，调试时将有可能被阻塞而不执行回调
                     var souceNode = null;
                     if (totalBuffer && totalBuffer != Player.totalBuffer) { //防止seek时，之前未完成的异步解码对新队列的影响
                         return;
@@ -395,7 +395,7 @@
                         }
                     }
                     
-                }, function(e) {
+                }).catch(function(e) {
                     log(index, "解码失败");
                 });
                 return result;
@@ -611,7 +611,7 @@
                 }
             }
             //删除头部与尾部损坏数据
-            result = Player.fixFileBlock(result, index, endIndex);
+            result = Player.fixFileBlock(result, index, endIndex, false, false, 0, 15);
             if (ifTest()) {
                 var tmp = new Uint8Array(result);
                 if(tmp.length > 0){
@@ -660,7 +660,7 @@
             return begin;
         },
         //修复数据块头尾损坏数据（分割后，头部数据可能不是数据帧的帧头开始，需要修复）
-        fixFileBlock: function(arrayBuffer, beginIndex, endIndex, excludeBegin, excludeEnd, offset) {
+        fixFileBlock: function(arrayBuffer, beginIndex, endIndex, excludeBegin, excludeEnd, offset, endFrameSize) {
             offset = offset || 0;
             var result = arrayBuffer;
             if (!excludeBegin) {
@@ -711,6 +711,8 @@
                         count += 200;
                     }
                 } else {
+                    var flagReg = new RegExp(audioInfo.frameHeaderFlag,'g');
+                    var match = null;
                     i = uint8Array.length - 1;
                     count = uint8Array.length - 200;
                     while (true) {
@@ -722,7 +724,8 @@
                             }
                         }
                         bufferStr = bufferStr.toUpperCase();
-                        if (bufferStr.indexOf(audioInfo.frameHeaderFlag) != -1) {
+                        match = bufferStr.match(flagReg);
+                        if (match && match.length >= endFrameSize) { // 对于MP3格式来说，后面的帧可能依赖于前面的某几帧
                             return bufferStr.length / 2 - bufferStr.indexOf(audioInfo.frameHeaderFlag) / 2;
                         }
                         if (i == 0) {
@@ -754,6 +757,9 @@
         //跳转某个索引
         seek: function(index) {
             var mp3Info = Player.audioInfo;
+            if(index >= indexSize){
+                index = indexSize - 1;
+            }
             if(Player.totalBuffer){
                 var begin = Player.totalBuffer.length * index / indexSize;
                 if(begin > Player.totalBuffer.dataBegin && begin+5*Player.sampleRate < Player.totalBuffer.dataEnd){
