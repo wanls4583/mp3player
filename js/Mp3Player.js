@@ -11,7 +11,7 @@
     var waitingCb = emptyCb; //等待回调
     var playingCb = emptyCb; //等待结束回调
     var endCb = emptyCb; //播放结束回调
-    var iosClicked = false; //ios首次播放是否点击过
+    var maxDecodeSize = 10*1024*1024; // 最大解码字节长度(默认10M)
     var isIos = navigator.userAgent.indexOf('iPhone') > -1;
     Array.prototype.indexOf = function(item) {
         for (var i = 0; i < this.length; i++) {
@@ -352,7 +352,7 @@
                     }
                     if (Player.seeking) {
                         Player.seeking = false;
-                        Player.totalBuffer.dataBegin = Player.totalBuffer.dataEnd = (totalBuffer.length * result.beginIndex / indexSize)>>0;
+                        Player.totalBuffer.dataOffset = Player.totalBuffer.dataBegin = Player.totalBuffer.dataEnd = (totalBuffer.length * result.beginIndex / indexSize)>>0;
                         Player._copyPCMData(buffer);
                         if(Player.hasPlayed){
                             Player._play(Player.totalBuffer.dataBegin / Player.totalBuffer.length * audioInfo.totalTime);
@@ -378,10 +378,10 @@
                             if (Player.loadingPromise) {
                                 Player.loadingPromise.stopNextLoad = true;
                                 Player.loadingPromise.then(function() {
-                                    Player.decodeAudioData(result.beginIndex, result.endIndex - result.beginIndex + 1 +minSize, null, totalBuffer);
+                                    _nextDecode(result, totalBuffer, minSize, audioInfo);
                                 })
                             } else {
-                                Player.decodeAudioData(result.beginIndex, result.endIndex - result.beginIndex + 1 +minSize, null, totalBuffer);
+                                _nextDecode(result, totalBuffer, minSize, audioInfo);
                             }
                         }, nextDecodeTime);
                     }
@@ -390,12 +390,20 @@
                     log(index, "解码失败", e);
                     Player.decodingPromise = null;
                 });
+                function _nextDecode(result, totalBuffer, minSize, audioInfo){
+                    if(!result.exceed){
+                        Player.decodeAudioData(result.beginIndex, result.endIndex - result.beginIndex + 1 + Player.cacheFrameSize, null, totalBuffer);
+                    }else{
+                        totalBuffer.dataOffset = totalBuffer.dataEnd;
+                        Player.decodeAudioData(result.endIndex+1, Player.cacheFrameSize, null, totalBuffer);
+                    }
+                }
                 return result;
             });
         },
         //复制PCM流
         _copyPCMData: function(_buffer){
-            var offset = Player.totalBuffer.dataBegin;
+            var offset = Player.totalBuffer.dataOffset;
             for(var i=0; i<_buffer.numberOfChannels; i++){
                 Player.totalBuffer.copyToChannel(_buffer.getChannelData(i),i,offset);
             }
@@ -578,21 +586,24 @@
             var result = null;
             var endIndex = index;
             var indexLength = Player.fileBlocks.length;
+            var exceed = false; //是否超过了最大解码长度
             if(ifDebug()){
                 var joinBegin = new Date().getTime();
                 log('join', index);
             }
             
             //开始播放或者seek时只返回minSize个数据块
-            if (/*negative*/true) {
+            if (negative) {
                 indexLength = index + minSize;
                 indexLength = indexLength > indexSize ? indexSize : indexLength;
             }
             for (var i = index; i < indexLength && Player.fileBlocks[i]; i++) {
                 endIndex = i;
-            }
-            for (var i = index; i < indexLength && Player.fileBlocks[i]; i++) {
                 length += Player.fileBlocks[i].byteLength;
+                if(length >= maxDecodeSize){
+                    exceed = true;
+                    break;
+                }
             }
             result = new ArrayBuffer(length);
             arr = new Uint8Array(result);
@@ -636,6 +647,7 @@
                 log('join花费:', new Date().getTime() - joinBegin, 'ms');
             }
             return {
+                exceed : exceed,
                 arrayBuffer: result,
                 beginIndex: index,
                 endIndex: endIndex
