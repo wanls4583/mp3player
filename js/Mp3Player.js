@@ -314,7 +314,8 @@
         //计时器
         timeoutIds: {
             decodeTimeoutId: null,
-            updateTimeoutId: null
+            updateTimeoutId: null,
+            playTimoutId: null
         },
         //解码
         decodeAudioData: function(index, minSize, negative, totalBuffer) {
@@ -404,10 +405,16 @@
         //复制PCM流
         _copyPCMData: function(_buffer){
             var offset = Player.totalBuffer.dataOffset;
-            for(var i=0; i<_buffer.numberOfChannels; i++){
-                Player.totalBuffer.copyToChannel(_buffer.getChannelData(i),i,offset);
+            var delLength = 1152*3; // 需要删除的断点损坏数据长度
+            if(Player.audioInfo.toc){ // vbr模式下
+                delLength = 1152*8; 
             }
-            Player.totalBuffer.dataEnd += _buffer.length;
+            for(var i=0; i<_buffer.numberOfChannels; i++){
+                var data = _buffer.getChannelData(i);
+                Player.totalBuffer.copyToChannel(_buffer.getChannelData(i).slice(delLength),i,offset);
+            }
+            Player.totalBuffer.dataEnd = offset + _buffer.length - delLength;
+
         },
         //播放
         _play: function(startTime) {
@@ -622,7 +629,7 @@
                 }
             }
             //删除尾部损坏数据
-            result = Player.fixFileBlock(result, index, endIndex, false, false, 0, 1);
+            result = Player.fixFileBlock(result, index, endIndex, false, false, 0, 9);
             if (ifTest()) {
                 var tmp = new Uint8Array(result);
                 if(tmp.length > 0){
@@ -757,7 +764,6 @@
         //跳转某个索引
         seek: function(index) {
             var mp3Info = Player.audioInfo;
-            Player._clearTimeout();
             if(index >= indexSize){
                 index = indexSize - 1;
             }
@@ -765,11 +771,14 @@
                 var begin = Player.totalBuffer.length * index / indexSize;
                 if(begin > Player.totalBuffer.dataBegin && begin+5*Player.sampleRate < Player.totalBuffer.dataEnd){
                     var startTime = index / indexSize * mp3Info.totalTime;
+                    clearInterval(Player.timeoutIds.updateTimeoutId);
+                    clearTimeout(Player.timeoutIds.playTimoutId);
                     Player._play(startTime);
                     return;
                 }
                 Player.totalBuffer = Player.audioContext.createBuffer(Player.numberOfChannels, Player.bufferLength, Player.sampleRate);
             }
+            Player._clearTimeout();
             Player.seeking = true;
             Player.finished = false;
             if (Player.nowSouceNode) {
@@ -790,6 +799,7 @@
         _clearTimeout: function() {
             clearTimeout(Player.timeoutIds.decodeTimeoutId);
             clearInterval(Player.timeoutIds.updateTimeoutId);
+            clearTimeout(Player.timeoutIds.playTimoutId);
         }
     }
     //调试模式抛出到全局
@@ -833,32 +843,33 @@
             var nowSouceNode = Player.nowSouceNode;
             var audioContext = Player.audioContext;
             var audioInfo = Player.audioInfo;
-            var playTimoutId = null;
+            clearTimeout(Player.timeoutIds.playTimoutId);
             if(isIos){
             	Player.audio.play();
             }
             if(!Player.hasPlayed){
                 if(!Player.totalBuffer || typeof Player.totalBuffer.dataBegin == undefined){
-                    playTimoutId = setTimeout(function(){
+                    Player.timeoutIds.playTimoutId = setTimeout(function(){
                         self.play();
                     },500);
                     return ;
                 }
                 Player._play(Player.totalBuffer.dataBegin / Player.totalBuffer.length * audioInfo.totalTime);
-            }else if (Player.pause == true && !Player.waiting) {
+                playCb();
+            }else if ((Player.pause == true || Player.finished) && !Player.waiting) {
                 if(Player.finished){
                     Player.seek(0);
                 }else{
                     Player.pause = false;
                     audioContext.resume();
-                    playCb();
                 }
+                playCb();
             }
-            playCb();
         }
         this.pause = function() {
             Player.pause = true;
             Player.audioContext.suspend();
+            clearTimeout(Player.timeoutIds.playTimoutId);
             pauseCb();
         }
         this.seek = function(percent) {
