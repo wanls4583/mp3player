@@ -138,7 +138,7 @@
             var uint8Array = null;
             var vbrDataBuffer = null;
             var bitRate = MP3InfoAnalysis.getBitRate(arrayBuffer);
-            var samplingRate = MP3InfoAnalysis.getSamplingRate(arrayBuffer);
+            var sampleRate = MP3InfoAnalysis.getSampleRate(arrayBuffer);
             var headerFlag = '';
             uint8Array = new Uint8Array(arrayBuffer);
             //转换成16进制码
@@ -210,7 +210,7 @@
 
             function _getInfo(vbrDataBuffer) {
                 mp3Info.totalFrame = _getTotalFrame(vbrDataBuffer);
-                mp3Info.totalTime = 1152 * mp3Info.totalFrame / samplingRate;
+                mp3Info.totalTime = 1152 * mp3Info.totalFrame / sampleRate;
                 mp3Info.totalSize = _getTotalSize(vbrDataBuffer);
                 mp3Info.toc = _getToc(vbrDataBuffer);
                 return mp3Info;
@@ -256,11 +256,11 @@
                 '1110': 320000
             }
             var uint8Array = new Uint8Array(arrayBuffer);
-            var brCode = (uint8Array[2] & 0xF0).toString(2).substring(0, 4);
+            var brCode = (uint8Array[2]>>4).toString(2);
             return brMap[brCode];
         },
         //获取采样率
-        getSamplingRate: function(arrayBuffer) {
+        getSampleRate: function(arrayBuffer) {
             //比特率对应表(Hz)
             var srMap = {
                 '0': 44100,
@@ -283,10 +283,10 @@
         },
         //获取帧大小(bit)
         getFrameSize: function(arrayBuffer) {
-            var samplingRate = MP3InfoAnalysis.getSamplingRate(arrayBuffer);
+            var sampleRate = MP3InfoAnalysis.getSampleRate(arrayBuffer);
             var bitRate = MP3InfoAnalysis.getBitRate(arrayBuffer);
             var padding = MP3InfoAnalysis.getPadding(arrayBuffer);
-            return 1152 * bitRate / samplingRate / 8 + padding;
+            return 1152 * bitRate / sampleRate / 8 + padding;
         }
     }
     //音频播放对象
