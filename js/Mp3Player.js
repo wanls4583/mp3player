@@ -405,9 +405,9 @@
         //复制PCM流
         _copyPCMData: function(_buffer){
             var offset = Player.totalBuffer.dataOffset;
-            var delLength = 1152*3; // 需要删除的断点损坏数据长度
-            if(Player.audioInfo.toc){ // vbr模式下
-                delLength = 1152*8; 
+            var delLength = 1152; // 需要删除的断点损坏数据长度
+            if(offset > 1152){
+                offset-=1152;
             }
             for(var i=0; i<_buffer.numberOfChannels; i++){
                 var data = _buffer.getChannelData(i);
@@ -629,7 +629,7 @@
                 }
             }
             //删除尾部损坏数据
-            result = Player.fixFileBlock(result, index, endIndex, false, false, 0, 9);
+            result = Player.fixFileBlock(result, index, endIndex, false, false, 0, 4);
             if (ifTest()) {
                 var tmp = new Uint8Array(result);
                 if(tmp.length > 0){
