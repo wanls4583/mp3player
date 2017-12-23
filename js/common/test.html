@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>bit-test</title>
+	<script type="text/javascript" src="../sea.js"></script>
+	<script type="text/javascript">
+		seajs.use('common/bitstream',function(BS){
+			var bs = new BS(100);
+			for(var i=0; i<100; i++){
+				bs.setByte(i,i);
+			}
+			bs.setBytePos(88);
+			bs.skipBits(4);
+			console.log(bs.getBits(4))
+		})
+	</script>
+</head>
+<body>
+</body>
+</html>
