@@ -64,10 +64,11 @@ define(function(require, exports, module) {
     }
     /**
      * 解析ID3V1标签
+     * @return number tagSize
      */
     _proto_.parseId3V1 = function(){
     	bitStream.reset();
-    	if (this.checkID3V1() == false)
+    	if (this.checkId3V1() == false)
 			return;
 		var i = 0;
 		var bytes = new Uint8Array(30);
@@ -97,9 +98,12 @@ define(function(require, exports, module) {
 		comment = asciiDecoder.decode(bytes);
 
 		genre = bitStream.getByte();
+
+		return tagSize;
     }
     /**
      * 解析ID3V2标签
+     * @return number tagSize
      */
     _proto_.parseId3V2 = function(){
     	bitStream.reset();
@@ -150,7 +154,7 @@ define(function(require, exports, module) {
 				case 'TCON': genre = cont; break;
 			}
 		}
-
+		return tagSize;
     }
     /**
      * 解析APE标签
