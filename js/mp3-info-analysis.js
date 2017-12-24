@@ -17,8 +17,8 @@
 define(function(require, exports, module) {
     'use strict';
 
-    var requestRange = require('./request-range');
-    var Util = require('./Util');
+    var requestRange = require('./common/request-range');
+    var Util = require('./common/util');
     //MP3播放信息解析对象
     var MP3InfoAnalysis = {
         init: function(url, opt) {

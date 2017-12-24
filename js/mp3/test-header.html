@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>test2</title>
+    <script type="text/javascript" src="../sea.js"></script>
+</head>
+
+<body>
+    <script type="text/javascript">
+    seajs.use('mp3/id3tag',function(Id3Tag){
+        var audioContext = new(AudioContext || WebkitAudioContext)();
+
+        function load(begin, end, cb) {
+            var request = new XMLHttpRequest();
+            request.open('GET', 'http://localhost:8000/test.mp3', true);
+            request.responseType = 'arraybuffer';
+            request.onload = function() {
+                var id3Tag = new Id3Tag(request.response);
+                id3Tag.parseId3V2();
+            }
+            request.setRequestHeader("Range", 'bytes=' + begin + '-' + end);
+            request.send();
+        }
+        load(0,'');
+    })
+    
+    </script>
+</body>
+
+</html>

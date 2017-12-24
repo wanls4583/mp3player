@@ -5,8 +5,8 @@
 define(function(require, exports, module) {
     'use strict';
 
-    var requestRange = require('./request-range');
-    var Util = require('./Util');
+    var requestRange = require('./common/request-range');
+    var Util = require('./common/util');
 
     function Mp3Player(_url, opt) {
         var indexSize = 100; //区块个数（根据时间平均分为100份,默认100）

@@ -5,6 +5,7 @@ define(function(require, exports, module) {
 	var _uint8Array = null;
 	var _bytePos = 0; //当前bit位置
 	var _bitPos = 0; //当前字节位置
+
 	function BitStream(arrayBuffer){
 		if(arrayBuffer instanceof ArrayBuffer){
 			_uint8Array = new Uint8Array(arrayBuffer);
@@ -60,12 +61,37 @@ define(function(require, exports, module) {
 		return bit;
 	}
 	/**
+	 * 获取1个字节
+	 * @return  number 0|1
+	 */
+	_proto_.getByte = function(){
+		if(_bytePos >= _uint8Array.length)
+			return false;
+		var byte = _uint8Array[_bytePos];
+		_bytePos++;
+		return byte;
+	}
+	/**
 	 * 获取len个bit位二进制字符串
 	 * @param  number len bit长度
 	 * @return  string 二进制字符串
 	 */
 	_proto_.getBitsStr = function(len){
 		return this._getBits(len).toString(2);
+	}
+	/**
+	 * 返回字节位置
+	 * @retrun  number pos 位置
+	 */
+	_proto_.getBytePos = function(pos){
+		return _bytePos;
+	}
+	/**
+	 * 返回bit位置
+	 * @retrun  number pos 位置
+	 */
+	_proto_.getBitPos = function(pos){
+		return _bitPos;
 	}
 	/**
 	 * 设置字节位置
@@ -76,6 +102,13 @@ define(function(require, exports, module) {
 			pos = _uint8Array.length;
 		}
 		_bytePos = pos;
+	}
+	/**
+	 * 设置bit位置
+	 * @param  number pos 位置
+	 */
+	_proto_.setBitPos = function(pos){
+		_bitPos = pos%8;
 	}
 	/**
 	 * 设置一位bit
@@ -134,6 +167,27 @@ define(function(require, exports, module) {
 		_uint8Array = new Uint8Array(newBuffer);
 		_uint8Array.set(arrayBuffer,0);
 		return newBuffer;
+	}
+	/**
+	 * 是否已到达最后一个bit
+	 * @return  boolean
+	 */
+	_proto_.isEnd = function(){
+		return _bytePos >= _uint8Array.length;
+	}
+	/**
+	 * 返回流字节个数
+	 * @return  number
+	 */
+	_proto_.getSize = function(){
+		return _uint8Array.length;
+	}
+	/**
+	 * 重头开始
+	 */
+	_proto_.reset = function(){
+		_bitPos = 0;
+		_bytePos = 0;
 	}
 	return BitStream;
 })
