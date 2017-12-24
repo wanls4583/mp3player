@@ -17,10 +17,14 @@
             request.responseType = 'arraybuffer';
             request.onload = function() {
                 var buffer = request.response;
-                // var id3Tag = new Id3Tag(buffer);
-                // id3Tag.parseId3V2();
-                id3Tag = new Id3Tag(buffer.slice(buffer.byteLength-128));
-                id3Tag.parseId3V1();
+                var id3Tag = new Id3Tag(buffer);
+                id3Tag.parseId3V2();
+                // id3Tag = new Id3Tag(buffer.slice(buffer.byteLength-128));
+                // id3Tag.parseId3V1();
+                // id3Tag = new Id3Tag(buffer.slice(buffer.byteLength-200));
+                // id3Tag.parseApe();
+                console.log(id3Tag.getYear());
+                console.log(id3Tag.getTitle());
             }
             request.setRequestHeader("Range", 'bytes=' + begin + '-' + end);
             request.send();

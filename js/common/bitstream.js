@@ -52,7 +52,7 @@ define(function(require, exports, module) {
 	_proto_.getBits1 = function(len){
 		if(_bytePos >= _uint8Array.length)
 			return false;
-		var bit = _uint8Array[_bitPos]>>1;
+		var bit = (_uint8Array[_bytePos]>>(7-_bitPos))&1;
 		_bitPos++;
 		if(_bitPos%8 == 0){
 			_bytePos++;
@@ -146,6 +146,15 @@ define(function(require, exports, module) {
 		_bytePos = _bytePos + len;
 		if(_bytePos > _uint8Array.length){
 			_bytePos = _uint8Array.length;
+		}
+	}
+	/**
+	 * 回退len个byte
+	 */
+	_proto_.rewindBytes = function(len){
+		_bytePos = _bytePos - len;
+		if(_bytePos < 0){
+			_bytePos = 0;
 		}
 	}
 	/**

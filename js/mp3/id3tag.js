@@ -16,13 +16,15 @@ define(function(require, exports, module) {
     var comment = ''; //注释
     var genre = ''; //风格
 
-    var TEXT_ENCODING = [];
+    var MAX_TAG_OFF = 10 * 1024; //查找标签头时，最多查找10K
+    var TEXT_ENCODING = []; //字符解码器
     TEXT_ENCODING[0] = new TextDecoder('GBK');
     TEXT_ENCODING[1] = new TextDecoder('UTF-16');
     TEXT_ENCODING[2] = new TextDecoder('UTF-16BE');
     TEXT_ENCODING[3] = new TextDecoder('UTF-8');
 
-    var asciiDecoder = new TextDecoder('ascii');
+    var gbkDecoder = TEXT_ENCODING[0];
+    var utf8Decoder = TEXT_ENCODING[3];
 
     function Id3Tag(arrayBuffer){
     	bitStream = new BitStream(arrayBuffer);
@@ -34,9 +36,18 @@ define(function(require, exports, module) {
      * 判断是否为ID3V1标签
      */
     _proto_.checkId3V1 = function(){
-    	var tag = String.fromCharCode(bitStream.getByte(), bitStream.getByte(), bitStream.getByte());
-    	if (tag!='TAG' || bitStream.getSize() < 128)
-			return false;
+    	if(bitStream.getSize() < 128){
+    		return false;
+    	}
+    	var tag = '';
+    	do{
+	    	tag = String.fromCharCode(bitStream.getByte(), bitStream.getByte(), bitStream.getByte());
+    	}while(tag!='TAG' && !bitStream.isEnd() && bitStream.getBytePos() < MAX_TAG_OFF);
+
+    	if(tag!='TAG'){
+    		return false;
+    	}
+
 		tagSize = 128;
 		return true;
     }
@@ -44,9 +55,14 @@ define(function(require, exports, module) {
      * 判断是否为ID3V2标签
      */
     _proto_.checkId3V2 = function(){
-    	var tag = String.fromCharCode(bitStream.getByte(), bitStream.getByte(), bitStream.getByte());
-    	if (tag!='ID3')
-			return false;
+    	var tag = '';
+    	do{
+	    	tag = String.fromCharCode(bitStream.getByte(), bitStream.getByte(), bitStream.getByte());
+    	}while(tag!='ID3' && !bitStream.isEnd() && bitStream.getBytePos() < MAX_TAG_OFF);
+
+    	if(tag!='ID3'){
+    		return false;
+    	}
 		return true;
     }
     /**
@@ -54,12 +70,17 @@ define(function(require, exports, module) {
      */
     _proto_.checkApe = function(){
     	var bytes = [];
-    	for(var i=0; i<8; i++){
-    		bytes[i] = bitStream.getByte();
+    	var tag = '';
+		do{
+			for(var i=0; i<8; i++){
+	    		bytes[i] = bitStream.getByte();
+	    	}
+	    	tag = String.fromCharCode.apply(null,bytes);
+    	}while(tag!='APETAGEX' && !bitStream.isEnd() && bitStream.getBytePos() < MAX_TAG_OFF);
+
+    	if(tag!='APETAGEX'){
+    		return false;
     	}
-    	var tag = String.fromCharCode.apply(null,bytes);
-    	if (tag!='APETAGEX')
-			return false;
 		return true;
     }
     /**
@@ -69,33 +90,33 @@ define(function(require, exports, module) {
     _proto_.parseId3V1 = function(){
     	bitStream.reset();
     	if (this.checkId3V1() == false)
-			return;
+			return false;
 		var i = 0;
 		var bytes = new Uint8Array(30);
 		for(i=0; i<30; i++){
 			bytes[i] = bitStream.getByte();
 		}
-		title = asciiDecoder.decode(bytes);
+		title = gbkDecoder.decode(bytes);
 
 		for(i=0; i<30; i++){
 			bytes[i] = bitStream.getByte();
 		}
-		artist = asciiDecoder.decode(bytes);
+		artist = gbkDecoder.decode(bytes);
 
 		for(i=0; i<30; i++){
 			bytes[i] = bitStream.getByte();
 		}
-		album = asciiDecoder.decode(bytes);
+		album = gbkDecoder.decode(bytes);
 
 		for(i=0; i<4; i++){
 			bytes[i] = bitStream.getByte();
 		}
-		year = asciiDecoder.decode(bytes);
+		year = gbkDecoder.decode(bytes);
 
 		for(i=0; i<30; i++){
 			bytes[i] = bitStream.getByte();
 		}
-		comment = asciiDecoder.decode(bytes);
+		comment = gbkDecoder.decode(bytes);
 
 		genre = bitStream.getByte();
 
@@ -108,7 +129,7 @@ define(function(require, exports, module) {
     _proto_.parseId3V2 = function(){
     	bitStream.reset();
     	if (this.checkId3V2() == false)
-			return;
+			return false;
 		bitStream.skipBytes(3);
 		tagSize = (((bitStream.getByte() & 0x7F) << 21) | 
 			((bitStream.getByte() & 0x7F) << 14) | 
@@ -123,7 +144,7 @@ define(function(require, exports, module) {
 			var len = bitStream.getBits(32);
 			var cont = '';
 			var bytes = new Uint8Array(len);
-			var strCode = 0;
+			var strCode = 0; //字符编码索引
 
 			if(!(key.charAt(0)<='z' && key.charAt(0)>='a') && !(key.charAt(0)<='Z' && key.charAt(0)>='A')){ //信息已读取完毕，后面为垃圾数据
 				bitStream.setBytePos(tagSize);
@@ -132,9 +153,10 @@ define(function(require, exports, module) {
 			}
 
 			bitStream.skipBytes(2);
-
 			strCode = bitStream.getByte();
-
+			if(strCode>3){
+				strCode = 3;
+			}
     		for(var i=0; i<len-1; i++){
     			bytes[i] = bitStream.getByte();
     		}
@@ -162,16 +184,26 @@ define(function(require, exports, module) {
     _proto_.parseApe = function(){
     	var itemSize = 0;
     	var isApeHeader = 0;
+    	var isHeader = 0;
     	bitStream.reset();
-    	if (checkApe() == false)
-			return;
+    	if (this.checkApe() == false)
+			return false;
 		bitStream.skipBytes(4);
 		//低位在前
 		tagSize = bitStream.getByte() | (bitStream.getByte() << 8) | (bitStream.getByte() << 16) | (bitStream.getByte() << 24);
-    	itemSize = bitStream.getBits(32);
+    	itemSize = bitStream.getByte() | (bitStream.getByte() << 8) | (bitStream.getByte() << 16) | (bitStream.getByte() << 24);
     	bitStream.skipBits(2);
     	if(bitStream.getBits1()){ //是ApeHeader
     		tagSize += 32;
+    		isHeader = 1;
+    	}
+    	bitStream.skipBits(32-3);
+    	bitStream.skipBytes(8);
+    	if(bitStream.getBytePos() < tagSize){
+    		return false;
+    	}
+    	if(!isHeader){
+    		bitStream.rewindBytes(tagSize);
     	}
     	for(var i=0; i<itemSize && bitStream.getBytePos()<tagSize; i++){
     		_getItem();
@@ -184,10 +216,12 @@ define(function(require, exports, module) {
     		var len = bitStream.getByte() | (bitStream.getByte() << 8) | (bitStream.getByte() << 16) | (bitStream.getByte() << 24);
     		var bytes = new Uint8Array(len);
     		bitStream.skipBytes(4);
-    		do{
-    			byte = bitStream.getByte();
+    		byte = bitStream.getByte();
+
+    		while(byte!=0 && bitStream.getBytePos()<tagSize){
     			key += String.fromCharCode(byte);
-    		}while(byte!=0 && bitStream.getBytePos()<tagSize)
+    			byte = bitStream.getByte();
+    		}
 
     		for(var i=0; i<len; i++){
     			bytes[i] = bitStream.getByte();
@@ -202,6 +236,7 @@ define(function(require, exports, module) {
 				case 'Genre': genre = cont; break;
     		}
     	}
+    	return tagSize;
     }
     _proto_.getTagSize = function(){
     	return tagSize;
