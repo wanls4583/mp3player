@@ -21,9 +21,9 @@ define(function(require, exports, module) {
         var waitingCb = emptyCb; //等待回调
         var playingCb = emptyCb; //等待结束回调
         var endCb = emptyCb; //播放结束回调
-        var maxDecodeSize = 10 * 1024 * 1024; // 最大解码字节长度(默认10M)
+        var maxDecodeSize = 8 * 1024 * 1024; // 最大解码字节长度(默认8M)
         var isIos = navigator.userAgent.indexOf('iPhone') > -1;
-        var audioInfoAnalysis = null;
+        var AudioInfo = null;
 
         //音频播放对象
         var Player = {
@@ -506,7 +506,7 @@ define(function(require, exports, module) {
         function _Player(_url, opt) {
             url = _url;
             if (typeof opt == 'object') {
-            	audioInfoAnalysis = opt.audioInfoAnalysis; //音频信息分析对象
+            	AudioInfo = opt.AudioInfo; //音频信息分析对象
                 if (typeof opt.decrypt == 'function') {
                     decrypt = opt.decrypt;
                 }
@@ -574,7 +574,7 @@ define(function(require, exports, module) {
             this.seek = function(percent) {
                 Player._seek(percent);
             }
-            audioInfoAnalysis.init(url,{
+            AudioInfo.init(url,{
             	decrypt: decrypt,
             	loadedmetaCb: loadedmetaCb
             }).then(function(audioInfo){

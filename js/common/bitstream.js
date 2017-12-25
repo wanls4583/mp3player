@@ -77,7 +77,7 @@ define(function(require, exports, module) {
 	 * @return  string 二进制字符串
 	 */
 	_proto_.getBitsStr = function(len){
-		return this._getBits(len).toString(2);
+		return this.getBits(len).toString(2);
 	}
 	/**
 	 * 返回字节位置
@@ -146,6 +146,15 @@ define(function(require, exports, module) {
 		_bytePos = _bytePos + len;
 		if(_bytePos > _uint8Array.length){
 			_bytePos = _uint8Array.length;
+		}
+	}
+	/**
+	 * 回退len个bit
+	 */
+	_proto_.rewindBits = function(len){
+		_bitPos = _bitPos - len;
+		if(_bitPos < 0){
+			_bitPos = 0;
 		}
 	}
 	/**

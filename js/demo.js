@@ -1,6 +1,6 @@
 define(function(require, exports, module) {
     'use strict';
-    var MP3InfoAnalysis = require('./mp3-info-analysis');
+    var MP3Info = require('./mp3info');
     var Player = require('./player');
     var Util = require('./common/util');
     // MP3InfoAnalysis.init('//file.qf.56.com/f/h5/style/common/audio/demo/test.mp3').then(function(audioInfo){
@@ -11,9 +11,9 @@ define(function(require, exports, module) {
     // });
     var totalTime = 0;
     var myRange = document.getElementById("myRange");
-    var mp3 = new Player('test.mp3', {
+    var mp3 = new Player('cbr.mp3', {
         emptyUrl: 'empty.mp3',
-        audioInfoAnalysis: MP3InfoAnalysis,
+        AudioInfo: MP3Info,
         loadedmetaCb: function(info) {
             var data = '';
             totalTime = info.totalTime;

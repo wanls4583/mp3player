@@ -42,7 +42,13 @@ define(function(require, exports, module) {
     	var tag = '';
     	do{
 	    	tag = String.fromCharCode(bitStream.getByte(), bitStream.getByte(), bitStream.getByte());
-    	}while(tag!='TAG' && !bitStream.isEnd() && bitStream.getBytePos() < MAX_TAG_OFF);
+	    	if(bitStream.isEnd()){
+	    		break;
+	    	}
+	    	if(tag!='TAG'){
+	    		bitStream.rewindBytes(2);
+	    	}
+    	}while(tag!='TAG' && bitStream.getBytePos() < MAX_TAG_OFF);
 
     	if(tag!='TAG'){
     		return false;
@@ -58,7 +64,13 @@ define(function(require, exports, module) {
     	var tag = '';
     	do{
 	    	tag = String.fromCharCode(bitStream.getByte(), bitStream.getByte(), bitStream.getByte());
-    	}while(tag!='ID3' && !bitStream.isEnd() && bitStream.getBytePos() < MAX_TAG_OFF);
+	    	if(bitStream.isEnd()){
+	    		break;
+	    	}
+	    	if(tag!='ID3'){
+	    		bitStream.rewindBytes(2);
+	    	}
+    	}while(tag!='ID3' && bitStream.getBytePos() < MAX_TAG_OFF);
 
     	if(tag!='ID3'){
     		return false;
@@ -76,7 +88,13 @@ define(function(require, exports, module) {
 	    		bytes[i] = bitStream.getByte();
 	    	}
 	    	tag = String.fromCharCode.apply(null,bytes);
-    	}while(tag!='APETAGEX' && !bitStream.isEnd() && bitStream.getBytePos() < MAX_TAG_OFF);
+	    	if(bitStream.isEnd()){
+	    		break;
+	    	}
+	    	if(tag!='APETAGEX'){
+	    		bitStream.rewindBytes(7);
+	    	}
+    	}while(tag!='APETAGEX'  && bitStream.getBytePos() < MAX_TAG_OFF);
 
     	if(tag!='APETAGEX'){
     		return false;
@@ -90,9 +108,12 @@ define(function(require, exports, module) {
     _proto_.parseId3V1 = function(){
     	bitStream.reset();
     	if (this.checkId3V1() == false)
-			return false;
+			return 0;
 		var i = 0;
 		var bytes = new Uint8Array(30);
+		if(bitStream.getSize()<128){
+			return tagSize;
+		}
 		for(i=0; i<30; i++){
 			bytes[i] = bitStream.getByte();
 		}
@@ -129,16 +150,21 @@ define(function(require, exports, module) {
     _proto_.parseId3V2 = function(){
     	bitStream.reset();
     	if (this.checkId3V2() == false)
-			return false;
+			return 0;
 		bitStream.skipBytes(3);
 		tagSize = (((bitStream.getByte() & 0x7F) << 21) | 
 			((bitStream.getByte() & 0x7F) << 14) | 
 			((bitStream.getByte() & 0x7F) << 7) | 
 			(bitStream.getByte() & 0x7F)) + 10;
 
-		while(bitStream.getBytePos() < tagSize){
+		if(bitStream.getSize() < tagSize){
+			return tagSize;
+		}
+		
+		while(bitStream.getBytePos() < tagSize && !bitStream.isEnd()){
 			_getItem();
 		}
+
 		function _getItem(){
 			var key = String.fromCharCode(bitStream.getByte(), bitStream.getByte(), bitStream.getByte(), bitStream.getByte());
 			var len = bitStream.getBits(32);
@@ -187,7 +213,7 @@ define(function(require, exports, module) {
     	var isHeader = 0;
     	bitStream.reset();
     	if (this.checkApe() == false)
-			return false;
+			return 0;
 		bitStream.skipBytes(4);
 		//低位在前
 		tagSize = bitStream.getByte() | (bitStream.getByte() << 8) | (bitStream.getByte() << 16) | (bitStream.getByte() << 24);
@@ -199,13 +225,13 @@ define(function(require, exports, module) {
     	}
     	bitStream.skipBits(32-3);
     	bitStream.skipBytes(8);
-    	if(bitStream.getBytePos() < tagSize){
-    		return false;
+    	if(bitStream.getBytePos() < tagSize || bitStream.getSize() < tagSize){
+    		return tagSize;
     	}
     	if(!isHeader){
     		bitStream.rewindBytes(tagSize);
     	}
-    	for(var i=0; i<itemSize && bitStream.getBytePos()<tagSize; i++){
+    	for(var i=0; i<itemSize && bitStream.getBytePos()<tagSize && !bitStream.isEnd(); i++){
     		_getItem();
     	}
     	function _getItem(){
