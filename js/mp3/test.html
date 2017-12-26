@@ -8,12 +8,12 @@
 
 <body>
     <script type="text/javascript">
-    seajs.use(['mp3/id3tag','mp3/header'],function(Id3Tag, Header){
+    seajs.use(['mp3/id3tag','mp3/scalefactor'],function(Id3Tag, ScaleFactor){
         var audioContext = new(AudioContext || WebkitAudioContext)();
 
         function load(begin, end, cb) {
             var request = new XMLHttpRequest();
-            request.open('GET', 'http://localhost:8000/test.mp3', true);
+            request.open('GET', 'http://localhost:8000/test/src/test.mp3', true);
             request.responseType = 'arraybuffer';
             request.onload = function() {
                 cb(request)
@@ -26,19 +26,11 @@
             var headerLength = 0;
             var id3Tag = new Id3Tag(buffer);
             headerLength = id3Tag.parseId3V2();
-            id3Tag = new Id3Tag(buffer.slice(buffer.byteLength-128));
-            id3Tag.parseId3V1();
-            id3Tag = new Id3Tag(buffer.slice(buffer));
             headerLength += id3Tag.parseApe();
-            console.log(id3Tag.getYear());
-            console.log(id3Tag.getTitle());
             load(headerLength,'',function(request){
                 var buffer = request.response;
-                var header = new Header(buffer);
-                var result = header.parseHeader(true);
-                if(result){
-                    console.log(header.getTotalDuration());
-                }
+                var scaleFactor = new ScaleFactor(buffer.slice(1000));
+                var result = scaleFactor.parseScaleFactors(0,0);
             })
         });
     })
