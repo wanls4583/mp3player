@@ -1,6 +1,6 @@
 define(function(require, exports, module) {
     'use strict';
-    var MP3Info = require('./mp3info');
+    var MP3Info = require('./mp3/mp3info');
     var Player = require('./player');
     var Util = require('./common/util');
     // MP3InfoAnalysis.init('//file.qf.56.com/f/h5/style/common/audio/demo/test.mp3').then(function(audioInfo){

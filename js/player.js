@@ -5,7 +5,7 @@
 define(function(require, exports, module) {
     'use strict';
 
-    var requestRange = require('./common/request-range');
+    var requestRange = require('./common/range');
     var Util = require('./common/util');
 
     function Mp3Player(_url, opt) {

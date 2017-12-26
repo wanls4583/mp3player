@@ -17,10 +17,10 @@
 define(function(require, exports, module) {
     'use strict';
 
-    var requestRange = require('./common/request-range');
-    var Util = require('./common/util');
-    var Mp3Header = require('./mp3/header');
-    var Mp3Id3Tag = require('./mp3/id3tag');
+    var requestRange = require('../common/range');
+    var Util = require('../common/util');
+    var Mp3Header = require('./header');
+    var Mp3Id3Tag = require('./id3tag');
     //MP3播放信息解析对象
     var MP3Info = {
         init: function(url, opt) {
