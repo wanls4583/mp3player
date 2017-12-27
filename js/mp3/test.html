@@ -34,7 +34,24 @@
             })
         });
     })
-    
+    // var request = new XMLHttpRequest();
+    // request.open('GET', 'http://localhost:8000/js/mp3/huffmantable.js', true);
+    // request.onload = function() {
+    //     var txt = request.responseText;
+    //     var lines = txt.split(/\r\n/);
+    //     var str = '';
+    //     var c = 0;
+    //     for(var i=0; i<lines.length; i++){
+    //         var m = lines[i].match(/(\d+?)[\s]+?(\d+?)[\s]+?\d+?[\s]+?(\d+)[\s]*?/);
+    //         if(m){
+    //             str+= "'"+m[3]+"':["+m[1]+','+m[2]+'],'+'<br>'
+    //         }else{
+    //             str+=lines[i]+'<br>'
+    //         }
+    //     }
+    //     document.write(str);
+    // }
+    request.send();
     </script>
 </body>
 

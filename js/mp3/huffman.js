@@ -5,7 +5,8 @@ define(function(require, exports, module) {
     'use strict';
 
     var Header = require('./header');
-    var ScaleFactor = require('./scaleFactor');
+    var ScaleFactor = require('./scalefactor');
+    var huffmanTable = require('./huffmantable');
 
     var header = null;
     var scaleFactor = null;
@@ -28,6 +29,7 @@ define(function(require, exports, module) {
     		throw new Error('比例因子解析失败');
     	}
     	this.initSfbIndex();
+        this.parseRegionStart();
     }
 
     var _proto_ = Huffman.prototype;
@@ -59,6 +61,8 @@ define(function(require, exports, module) {
     }
     /**
      * 获取从码表得到值的个数
+     * @param {number} gr 颗粒
+     * @param {number} ch 声道
      */
     _proto_.parseRegionStart = function(gr, ch){
 
@@ -83,12 +87,13 @@ define(function(require, exports, module) {
      * @param {number} ch 声道
      */
     _proto_.huffmanDecode = function(gr, ch){
-        var part3len = ci.part2_3_length - ci.part2_length;
-        var x = ci.region1Start;    // region1
-        var y = ci.region2Start;    // region2
-        var i = ci.big_values << 1; // bv
+        var part3len = sideInfo.part2_3_length[gr][ch] - sideInfo.part2_length[gr][ch];
+        var x = sideInfo.region1Start[gr][ch];    // region1
+        var y = sideInfo.region2Start[gr][ch];    // region2
+        var i = sideInfo.big_values[gr][ch] << 1; // bv
         var hv = []; //结果
-        
+        var region = []; //频率区域（大值区分为三个区域）
+
         if(i > 574)
             i = 574; // 错误的big_value置为0 ?
         if(x < i) {
@@ -102,82 +107,9 @@ define(function(require, exports, module) {
             region[0] = region[1] = region[2] = i;
 
         /*
-         * 2. 使位流缓冲区按字节对齐
-         */
-        var num = (8 - bitPos) & 7;
-        var mask = 0;
-        if (num > 0) {
-            mask = getBits9(num);
-            mask <<= 32 - num;
-            part3len -= num;
-        }
-
-        /*
-         * 3. 解码大值区
+         * 1. 解码大值区
          */
         for (i = 0; i < 3; i++) {
-            maxidx = region[i];
-            tmp = ci.table_select[i];
-            htab = htbv[tmp];
-            linbits = lin[tmp];
-            while (idx < maxidx) {
-                if (part3len + num <= 0) { //检测位流是否有错误
-                    num -= part3len + num;
-                    break;
-                }
-                
-                while (num < 24) { // refresh mask
-                    mask |= (b[bytePos++] & 0xff) << (24 - num);
-                    num += 8;
-                    part3len -= 8;
-                }
-                tmp = mask;
-                y = htab[tmp >>> 30];
-                while (y < 0) {
-                    tmp <<= 2;
-                    y = htab[(tmp >>> 30) - y];
-                }
-                x = y >> 8; // x暂存hlen
-                num -= x;
-                mask <<= x;
-
-                x = (y >> 4) & 0xf; // 解得x,y
-                y &= 0xf;
-
-                if (x != 0) {
-                    if (x == 15 && linbits != 0) {
-                        while (num < 24) { // refresh mask
-                            mask |= (b[bytePos++] & 0xff) << (24 - num);
-                            num += 8;
-                            part3len -= 8;
-                        }
-                        x += mask >>> (32 - linbits); // 循环右移
-                        num -= linbits;
-                        mask <<= linbits;
-                    }
-                    hv[idx++] = (mask < 0) ? -x : x;
-                    num--;
-                    mask <<= 1;
-                } else
-                    hv[idx++] = 0;
-
-                if (y != 0) {
-                    if (y == 15 && linbits != 0) {
-                        while (num < 24) { // refresh mask
-                            mask |= (b[bytePos++] & 0xff) << (24 - num);
-                            num += 8;
-                            part3len -= 8;
-                        }
-                        y += mask >>> (32 - linbits);
-                        num -= linbits;
-                        mask <<= linbits;
-                    }
-                    hv[idx++] = (mask < 0) ? -y : y;
-                    num--;
-                    mask <<= 1;
-                } else
-                    hv[idx++] = 0;
-            }
         }
     }
 })
