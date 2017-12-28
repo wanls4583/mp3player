@@ -34,6 +34,7 @@
                     var sideinfo = new Sideinfo(header.parseHeader(), header);
                     var scaleFactor = new ScaleFactor(sideinfo.parseSideInfo(), sideinfo);
                     var huffman = new Huffman(scaleFactor.parseScaleFactors(0,0), header, sideinfo);
+                    huffman.huffmanDecode(0,0);
                 })
             });
     })

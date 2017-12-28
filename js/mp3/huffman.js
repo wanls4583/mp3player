@@ -72,11 +72,11 @@ define(function(require, exports, module) {
 	    } else {  
 	        r1 = sideInfo.region0_count[gr][ch] + 1;  
 	        r2 = r1 + sideInfo.region1_count[gr][ch] + 1;  
-	        if (r2 > intSfbIdxLong.length - 1) {  
-	            r2 = intSfbIdxLong.length - 1;  
+	        if (r2 > sfbIndexLong.length - 1) {  
+	            r2 = sfbIndexLong.length - 1;  
 	        }  
-	        sideInfo.region1Start[gr][ch] = intSfbIdxLong[r1];  
-	        sideInfo.region2Start[gr][ch] = intSfbIdxLong[r2];  
+	        sideInfo.region1Start[gr][ch] = sfbIndexLong[r1];  
+	        sideInfo.region2Start[gr][ch] = sfbIndexLong[r2];  
 	    }  
     }
     /**
@@ -112,11 +112,32 @@ define(function(require, exports, module) {
          */
         for (i = 0; i < 3; i++) {
             var maxidx = region[i];
-            var tmp = ci.table_select[i];
-            var htab = hct[tmp]; //Huffman码表
-            var linbits = lin[tmp]; //linbits码表
-            while (idx < maxidx){
+            var tmp = sideInfo.table_select[gr][ch][i];
+            var htab = huffmanTable.hct[tmp]; //Huffman码表
+            var linbits = huffmanTable.lin[tmp]; //linbits码表
+            var x,y,hcode='';
+            while (idx < maxidx && !bitStream.isEnd()){
+                hcode+=bitStream.getBitsStr(1);
+                if(htab[hcode]){
+                    x = htab[hcode][0]; //x
+                    y = htab[hcode][y]; //x
 
+                    if(x==15 && linbits!=0){
+                        x+=bitStream.getBits(linbits);
+                    }else if(x!=0){
+                        x = bitStream.getBits1() == 1 ? -x : x;
+                    }
+                    hv[idx++] = x;
+
+                    if(y==15 && linbits!=0){
+                        y+=bitStream.getBits(linbits);
+                    }else if(y!=0){
+                        y = bitStream.getBits1() == 1 ? -y : y;
+                    }
+                    hv[idx++] = x;
+
+                    hcode = '';
+                }
             }
         }
     }
