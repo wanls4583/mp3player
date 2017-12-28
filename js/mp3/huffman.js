@@ -93,6 +93,7 @@ define(function(require, exports, module) {
         var hv = []; //结果
         var region = []; //频率区域（大值区分为三个区域）
         var idx = 0;
+        var bits = 0;
         var hv = []; //解码结果
 
         if(i > 574)
@@ -117,19 +118,25 @@ define(function(require, exports, module) {
             var linbits = huffmanTable.lin[tmp]; //linbits码表
             var x,y,hcode='';
             while (idx < maxidx && !bitStream.isEnd()){
+                if(tmp==0){
+                    hv[idx++] = 0;
+                    hv[idx++] = 0;
+                    continue;
+                }
                 hcode+=bitStream.getBitsStr(1);
+                bits++; //记录用去的bit数
                 if(htab[hcode]){
                     x = htab[hcode][0]; //x
-                    y = htab[hcode][y]; //x
+                    y = htab[hcode][1]; //y
 
-                    if(x==15 && linbits!=0){
+                    if(x==15 && linbits){
                         x+=bitStream.getBits(linbits);
                     }else if(x!=0){
                         x = bitStream.getBits1() == 1 ? -x : x;
                     }
                     hv[idx++] = x;
 
-                    if(y==15 && linbits!=0){
+                    if(y==15 && linbits){
                         y+=bitStream.getBits(linbits);
                     }else if(y!=0){
                         y = bitStream.getBits1() == 1 ? -y : y;
@@ -140,6 +147,50 @@ define(function(require, exports, module) {
                 }
             }
         }
+        /*
+         * 2. 解码count1区
+         */
+        while(idx<572 && bits<part3len){
+            var tmp = sideInfo.count1table_select[gr][ch];
+            var htab = 0;
+            var v,w,x,y;
+            if(!tmp){
+                htab = huffmanTable.hctA; //Huffman码表
+            }else{
+                htab = huffmanTable.hctB; //Huffman码表
+            }
+            tmp = '';
+            while(!htab[tmp]){
+                tmp+=bitStream.getBits1();
+            }
+            v = htab[tmp][0];
+            w = htab[tmp][1];
+            x = htab[tmp][2];
+            y = htab[tmp][3];
+            if(v!=0){
+                v = bitStream.getBits1() == 1 ? -v : v;
+            }
+            if(w!=0){
+                w = bitStream.getBits1() == 1 ? -w : w;
+            }
+            if(x!=0){
+                x = bitStream.getBits1() == 1 ? -x : x;
+            }
+            if(y!=0){
+                y = bitStream.getBits1() == 1 ? -y : y;
+            }
+            hv[idx++] = v;
+            hv[idx++] = w;
+            hv[idx++] = x;
+            hv[idx++] = y;
+        }
+        /**
+         * 3.zero区
+         */
+        while(idx<576){
+            hv[idx++] = 0;
+        }
+        return bitStream;
     }
     return  Huffman;
 })
