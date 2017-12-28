@@ -137,7 +137,7 @@ define(function(require, exports, module) {
                 totalDuration = totalFrames*1152/sampleRateMap[sampleRateIndex];
             }
         }
-        return true;
+        return bitStream;
     }
     /**
      * 解析vbr信息
@@ -164,7 +164,7 @@ define(function(require, exports, module) {
                         toc[i] = bitStream.getByte();
                     }
                 }
-                return true;
+                return bitStream;
             }else if(tag == 'VBRI'){ //VBRI头
                 bitStream.skipBytes(6);
                 totalBytes = bitStream.getBits(32);
@@ -175,7 +175,7 @@ define(function(require, exports, module) {
                 for(var i=0; i<tocSize; i++){
                     toc[i] = bitStream.getByte();
                 }
-                return true;
+                return bitStream;
             }else{
                 if(bitStream.isEnd()){
                     break;

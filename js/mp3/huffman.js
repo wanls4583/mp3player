@@ -9,17 +9,16 @@ define(function(require, exports, module) {
     var huffmanTable = require('./huffmantable');
 
     var header = null;
-    var scaleFactor = null;
     var sideInfo = null;
+    var bitStream = null;
 
     var sfbIndexLong = []; //长块比例因子带
     var sfbIndexShort = []; //短块比例因子带
 
-    function Huffman(arrayBuffer){
-    	header = new Header(arrayBuffer);
-    	header = header.parseHeader();
-    	scaleFactor = new ScaleFactor(arrayBuffer);
-    	sideInfo = scaleFactor.parseScaleFactors();
+    function Huffman(_bitStream, _header, _sideInfo){
+        bitStream = _bitStream;
+        header = _header;
+        sideInfo = _sideInfo;
     	sideInfo.region1Start = [[],[]];
     	sideInfo.region2Start = [[],[]];
     	if(!header){
@@ -29,7 +28,6 @@ define(function(require, exports, module) {
     		throw new Error('比例因子解析失败');
     	}
     	this.initSfbIndex();
-        this.parseRegionStart();
     }
 
     var _proto_ = Huffman.prototype;
@@ -87,12 +85,15 @@ define(function(require, exports, module) {
      * @param {number} ch 声道
      */
     _proto_.huffmanDecode = function(gr, ch){
+        this.parseRegionStart(gr, ch);
         var part3len = sideInfo.part2_3_length[gr][ch] - sideInfo.part2_length[gr][ch];
         var x = sideInfo.region1Start[gr][ch];    // region1
         var y = sideInfo.region2Start[gr][ch];    // region2
         var i = sideInfo.big_values[gr][ch] << 1; // bv
         var hv = []; //结果
         var region = []; //频率区域（大值区分为三个区域）
+        var idx = 0;
+        var hv = []; //解码结果
 
         if(i > 574)
             i = 574; // 错误的big_value置为0 ?
@@ -110,6 +111,14 @@ define(function(require, exports, module) {
          * 1. 解码大值区
          */
         for (i = 0; i < 3; i++) {
+            var maxidx = region[i];
+            var tmp = ci.table_select[i];
+            var htab = hct[tmp]; //Huffman码表
+            var linbits = lin[tmp]; //linbits码表
+            while (idx < maxidx){
+
+            }
         }
     }
+    return  Huffman;
 })

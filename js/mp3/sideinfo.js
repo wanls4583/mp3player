@@ -9,10 +9,12 @@ define(function(require, exports, module) {
     var HEADER_MASK = 0xffe0 >> 5; //同步头
     var MAX_TAG_OFF = 10 * 1024; //查找帧头，最多查找10K
     var bitStream = null;
+    var header = null;
     var channels = 0; //声道数
 
-    function SideInfo(arrayBuffer) {
-        bitStream = new BitStream(arrayBuffer);
+    function SideInfo(_bitStream, _header) {
+        bitStream = _bitStream;
+        header = _header;
         /*帧变信息-BEGIN*/
         this.main_data_begin = 0; //主数据开始位置偏移量(<=0)
         this.private_bits = 0; //私有位(ISO在以后将不适用这些位)
@@ -39,81 +41,64 @@ define(function(require, exports, module) {
     _proto_.parseSideInfo = function() {
         bitStream.reset(); //指针指向头部
         var mask = 0;
-        var channelMode = 0;
+        var channelMode = header.getChannelMode();
         var offset = 0;
         channels = 0;
-        do {
-            mask = bitStream.getBits(11); //获取是11位同步头
-            if (mask != HEADER_MASK) {
-                if (bitStream.isEnd()) {
-                    break;
+        bitStream.skipBits(24 - 11);
+        channelMode = bitStream.getBits(2);
+        bitStream.skipBits(32 - 26);
+        offset = bitStream.getBytePos();
+        this.main_data_begin = bitStream.getBits(9);
+        if (channelMode == 3){
+            channels = 1;
+            bitStream.getBits(5); //private_bits  
+        }else{
+            channels = 2;
+            bitStream.getBits(3); //private_bits  
+        }
+        for (ch = 0; ch < channels; ch++) {
+            this.scfsi[0] = bitStream.getBits1();
+            this.scfsi[1] = bitStream.getBits1();
+            this.scfsi[2] = bitStream.getBits1();
+            this.scfsi[3] = bitStream.getBits1();
+        }
+        for (var gr = 0; gr < 2; gr++) {
+            for (var ch = 0; ch < channels; ch++) {
+                this.part2_3_length[gr][ch] = bitStream.getBits(12);
+                this.big_values[gr][ch] = bitStream.getBits(9);
+                this.global_gain[gr][ch] = bitStream.getBits(8);
+                this.scalefac_compress[gr][ch] = bitStream.getBits(4);
+                this.window_switching_flag[gr][ch] = bitStream.getBits1();
+                if ((this.window_switching_flag[gr][ch]) != 0) {
+                    this.block_type[gr][ch] = bitStream.getBits(2);
+                    this.mixed_block_flag[gr][ch] = bitStream.getBits1();
+                    this.table_select[gr][ch][0] = bitStream.getBits(5);
+                    this.table_select[gr][ch][1] = bitStream.getBits(5);
+                    this.subblock_gain[gr][ch][0] = bitStream.getBits(3);
+                    this.subblock_gain[gr][ch][1] = bitStream.getBits(3);
+                    this.subblock_gain[gr][ch][2] = bitStream.getBits(3);
+                    if (this.block_type[gr][ch] == 0)
+                        return false;
+                    else if (this.block_type[gr][ch] == 2 && this.mixed_block_flag[gr][ch] == 0)
+                        this.region0_count[gr][ch] = 8;
+                    else
+                        this.region0_count[gr][ch] = 7;
+                    this.region1_count[gr][ch] = 20 - this.region0_count[gr][ch];
+                } else {
+                    this.table_select[gr][ch][0] = bitStream.getBits(5);
+                    this.table_select[gr][ch][1] = bitStream.getBits(5);
+                    this.table_select[gr][ch][2] = bitStream.getBits(5);
+                    this.region0_count[gr][ch] = bitStream.getBits(4);
+                    this.region1_count[gr][ch] = bitStream.getBits(3);
+                    this.block_type[gr][ch] = 0;
                 }
-                bitStream.rewindBits(3);
-                continue;
+                this.preflag[gr][ch] = bitStream.getBits1();
+                this.scalefac_scale[gr][ch] = bitStream.getBits1();
+                this.count1table_select[gr][ch] = bitStream.getBits1();
             }
-            bitStream.skipBits(24 - 11);
-            channelMode = bitStream.getBits(2);
-            bitStream.skipBits(32 - 26);
-            offset = bitStream.getBytePos();
-            this.main_data_begin = bitStream.getBits(9);
-            if (channelMode == 3){
-                channels = 1;
-                bitStream.getBits(5); //private_bits  
-            }else{
-                channels = 2;
-                bitStream.getBits(3); //private_bits  
-            }
-            for (ch = 0; ch < channels; ch++) {
-                this.scfsi[0] = bitStream.getBits1();
-                this.scfsi[1] = bitStream.getBits1();
-                this.scfsi[2] = bitStream.getBits1();
-                this.scfsi[3] = bitStream.getBits1();
-            }
-            for (var gr = 0; gr < 2; gr++) {
-                for (var ch = 0; ch < channels; ch++) {
-                    this.part2_3_length[gr][ch] = bitStream.getBits(12);
-                    this.big_values[gr][ch] = bitStream.getBits(9);
-                    this.global_gain[gr][ch] = bitStream.getBits(8);
-                    this.scalefac_compress[gr][ch] = bitStream.getBits(4);
-                    this.window_switching_flag[gr][ch] = bitStream.getBits1();
-                    if ((this.window_switching_flag[gr][ch]) != 0) {
-                        this.block_type[gr][ch] = bitStream.getBits(2);
-                        this.mixed_block_flag[gr][ch] = bitStream.getBits1();
-                        this.table_select[gr][ch][0] = bitStream.getBits(5);
-                        this.table_select[gr][ch][1] = bitStream.getBits(5);
-                        this.subblock_gain[gr][ch][0] = bitStream.getBits(3);
-                        this.subblock_gain[gr][ch][1] = bitStream.getBits(3);
-                        this.subblock_gain[gr][ch][2] = bitStream.getBits(3);
-                        if (this.block_type[gr][ch] == 0)
-                            return false;
-                        else if (this.block_type[gr][ch] == 2 && this.mixed_block_flag[gr][ch] == 0)
-                            this.region0_count[gr][ch] = 8;
-                        else
-                            this.region0_count[gr][ch] = 7;
-                        this.region1_count[gr][ch] = 20 - this.region0_count[gr][ch];
-                    } else {
-                        this.table_select[gr][ch][0] = bitStream.getBits(5);
-                        this.table_select[gr][ch][1] = bitStream.getBits(5);
-                        this.table_select[gr][ch][2] = bitStream.getBits(5);
-                        this.region0_count[gr][ch] = bitStream.getBits(4);
-                        this.region1_count[gr][ch] = bitStream.getBits(3);
-                        this.block_type[gr][ch] = 0;
-                    }
-                    this.preflag[gr][ch] = bitStream.getBits1();
-                    this.scalefac_scale[gr][ch] = bitStream.getBits1();
-                    this.count1table_select[gr][ch] = bitStream.getBits1();
-                }
-            }
-            if(channelMode==3){
-                offset+=17;
-            }else{
-                offset+=32;
-            }
-            return offset; //返回偏移量位置，拱后续解析比例因子
+        }
+        return bitStream; //返回bitStream，拱后续解析比例因子
 
-        } while (bitStream.getBytePos() < MAX_TAG_OFF);
-
-        return false;
     }
 
     return SideInfo;

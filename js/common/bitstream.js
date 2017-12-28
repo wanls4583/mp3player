@@ -15,6 +15,7 @@ define(function(require, exports, module) {
 		}else{
 			throw Error('参数错误');
 		}
+		this.buffer = arrayBuffer;
 	}
 	var _proto_ = BitStream.prototype;
 	/**
@@ -36,7 +37,7 @@ define(function(require, exports, module) {
 			return false;
 		for(var i=0; i<len && _bytePos < _uint8Array.length; i++){
 			byte = _uint8Array[_bytePos];
-			sum = (sum<<1) + ((byte>>(7-_bitPos))&1);
+			sum = (sum<<1) | ((byte>>(7-_bitPos))&1);
 			_bitPos++;
 			if(_bitPos%8 == 0){
 				_bytePos++;
@@ -74,10 +75,19 @@ define(function(require, exports, module) {
 	/**
 	 * 获取len个bit位二进制字符串
 	 * @param  number len bit长度
+	 * @param  boolean zeroize 头部是否补0
 	 * @return  string 二进制字符串
 	 */
-	_proto_.getBitsStr = function(len){
-		return this.getBits(len).toString(2);
+	_proto_.getBitsStr = function(len, zeroize){
+		var str = this.getBits(len).toString(2);
+		if(str.legnth < len){
+			var zeros = '';
+			for(var i=0; i<len-str.length; i++){
+				zeros+='0';
+			}
+			str = zeros+str;
+		}
+		return str;
 	}
 	/**
 	 * 返回字节位置

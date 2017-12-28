@@ -4,9 +4,6 @@
 define(function(require, exports, module) {
     'use strict';
 
-    var BitStream = require('../common/bitstream');
-    var SideInfo = require('./sideInfo');
-
     var bitStream = null;
     var sideInfo = null; 
     var offset = 0; //比例因子数据偏移量
@@ -14,11 +11,11 @@ define(function(require, exports, module) {
     var slen0 = [ 0, 0, 0, 0, 3, 1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4 ];  
     var slen1 = [ 0, 1, 2, 3, 0, 1, 2, 3, 1, 2, 3, 1, 2, 3, 2, 3 ];
 
-    function ScaleFactor(arrayBuffer){
-        sideInfo = new SideInfo(arrayBuffer)
+    function ScaleFactor(_bitstream, _sideInfo){
+        sideInfo = _sideInfo;
         offset = sideInfo.parseSideInfo();
         sideInfo.part2_bits = [[],[]];
-        bitStream = new BitStream(arrayBuffer.slice(offset));
+        bitStream = _bitstream;
         sideInfo.scfL = [[],[]]; // [2][23];
         sideInfo.scfS = [[[],[]],[[],[]]]; // [2][3][13];
     }
@@ -94,6 +91,10 @@ define(function(require, exports, module) {
                 }  
             }  
         }
+        return bitStream;
+    }
+
+    _proto_.getSideInfo = function(){
         return sideInfo;
     }
     return ScaleFactor;
