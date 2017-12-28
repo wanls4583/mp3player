@@ -38,35 +38,6 @@ define(function(require, exports, module) {
     var MAX_TAG_OFF = 10 * 1024; //查找帧头，最多查找10K
 
     var bitStream = null;
-    /*帧头信息--BEGIN*/
-    var verID = 0; //MPEG版本
-    var layer = 0; //MPEG层数
-    var protectionBit = 0; //保护位
-    var bitrateIndex = 0; //比特率索引
-    var sampleRateIndex = 0; //采样路索引
-    var paddingBit = 0; //填充位
-    var privateBit = 0; //私有位
-    var channelMode = 0; //声道模式
-    var channelModeExtension = 0; //立体声扩展模式 
-    var copyright = 0; //是否有版权信息
-    var original = 0; //是否是原始版本
-    var emphasis = 0; //强调
-     /*帧头信息--END*/
-
-    var sideInfoSize = 0; //帧边信息长度
-    var frameSize = 0; //帧长度
-    var mainDataSize = 0; //主数据长度
-
-    /*vbr信息--BEGIN*/    
-    var totalFrames = 0; //总的数据帧数
-    var totalBytes = 0; //总的数据字节数
-    var tocSize = 0; //索引表长度
-    var toc = null; //vbr索引表
-    /*vbr信息--BEGIN*/
-
-    var duration = 0; //帧播放时长
-    var totalDuration = 0; //总时长
-    var frameSync = ''; // 帧同步标志（2个字节的16进制字符串，以逗号分隔字节）
 
     function Header(arrayBuffer){
         bitStream = new BitStream(arrayBuffer);
@@ -91,38 +62,40 @@ define(function(require, exports, module) {
                 bitStream.rewindBits(3);
                 continue;
             }
-            verID = bitStream.getBits(2);
-            layer = bitStream.getBits(2);
-            protectionBit = bitStream.getBits(1);
-            if(!frameSync){
+            this.verID = bitStream.getBits(2); //MPEG版本
+            this.layer = bitStream.getBits(2); //MPEG层数
+            this.protectionBit = bitStream.getBits(1); //保护位
+            if(!this.frameSync){
                 bitStream.rewindBytes(2);
-                frameSync = bitStream.getBits(8).toString(16)+','+bitStream.getBits(8).toString(16);
-                frameSync = frameSync.toUpperCase();
+                this.frameSync = bitStream.getBits(8).toString(16)+','+bitStream.getBits(8).toString(16);
+                this.frameSync = this.frameSync.toUpperCase(); //同步头
             }
-            bitrateIndex = bitStream.getBitsStr(4);
-            sampleRateIndex = bitStream.getBitsStr(2);
-            paddingBit = bitStream.getBits(1);
-            privateBit = bitStream.getBits(1);
-            channelMode = bitStream.getBits(2);
-            channelModeExtension = bitStream.getBits(2);
-            copyright = bitStream.getBits(1);
-            original = bitStream.getBits(1);
-            emphasis = bitStream.getBits(2);
+            this.bitrateIndex = bitStream.getBitsStr(4);
+            this.bitRate = bitRateMap[this.bitrateIndex]; //比特率
+            this.sampleRateIndex = bitStream.getBitsStr(2);
+            this.sampleRate = sampleRateMap[this.sampleRateIndex]; //采样路索引
+            this.paddingBit = bitStream.getBits(1); //填充位
+            this.privateBit = bitStream.getBits(1); //私有位
+            this.channelMode = bitStream.getBits(2); //声道模式
+            this.channelModeExtension = bitStream.getBits(2); //声道扩展模式
+            this.copyright = bitStream.getBits(1); //版权
+            this.original = bitStream.getBits(1); //填充位
+            this.emphasis = bitStream.getBits(2); //强调
 
-            if(verID!=MPEG1 || layer!=LAYER3){
+            if(this.verID!=MPEG1 || this.layer!=LAYER3){
                 return false;
             }
 
-            frameSize  = bitRateMap[bitrateIndex] * 1152/8;
-            frameSize /= sampleRateMap[sampleRateIndex];
-            frameSize += paddingBit;
-            sideInfoSize = (channelMode == 3) ? 17 : 32;
-            duration = 1152/sampleRateMap[sampleRateIndex];
+            this.frameSize  = bitRateMap[this.bitrateIndex] * 1152/8;
+            this.frameSize /= sampleRateMap[this.sampleRateIndex];
+            this.frameSize += this.paddingBit; //帧长度
+            this.sideInfoSize = (this.channelMode == 3) ? 17 : 32; //帧边信息长度
+            this.duration = 1152/sampleRateMap[this.sampleRateIndex]; //本帧时长
 
             //计算主数据长度
-            mainDataSize = frameSize - 4 - sideInfoSize;
-            if(protectionBit == 0)
-                mainDataSize -= 2;  //CRC
+            this.mainDataSize = this.frameSize - 4 - this.sideInfoSize; //主数据长度
+            if(this.protectionBit == 0)
+                this.mainDataSize -= 2;  //CRC
             break;
 
         }while(bitStream.getBytePos() < MAX_TAG_OFF);
@@ -133,8 +106,8 @@ define(function(require, exports, module) {
 
         if(ifParseVbr){
             this.parseVbr();
-            if(toc){
-                totalDuration = totalFrames*1152/sampleRateMap[sampleRateIndex];
+            if(this.toc){
+                this.totalDuration = this.totalFrames*1152/sampleRateMap[this.sampleRateIndex]; //总时长
             }
         }
         return bitStream;
@@ -150,30 +123,30 @@ define(function(require, exports, module) {
         do{
             tag = String.fromCharCode(bitStream.getByte(), bitStream.getByte(), bitStream.getByte(), bitStream.getByte());
             if(tag == 'Xing' || tag == 'Info'){ //Xing，Info头
-                tocSize = 100;
+                this.tocSize = 100; //vbr索引表长度
                 flags = bitStream.getBits(32);
                 if(flags & 1){
-                    totalFrames = bitStream.getBits(32);
+                    this.totalFrames = bitStream.getBits(32); //总帧数
                 }
                 if(flags & 2){
-                    totalBytes = bitStream.getBits(32);
+                    this.totalBytes = bitStream.getBits(32); //总长度
                 }
                 if(flags & 4){
-                    toc = [];
-                    for(var i=0; i<tocSize; i++){
-                        toc[i] = bitStream.getByte();
+                    this.toc = []; //vbr索引表
+                    for(var i=0; i<this.tocSize; i++){
+                        this.toc[i] = bitStream.getByte();
                     }
                 }
                 return bitStream;
             }else if(tag == 'VBRI'){ //VBRI头
                 bitStream.skipBytes(6);
-                totalBytes = bitStream.getBits(32);
-                totalFrames = bitStream.getBits(32);
-                tocSize = bitStream.getBits(16);
+                this.totalBytes = bitStream.getBits(32);
+                this.totalFrames = bitStream.getBits(32);
+                this.tocSize = bitStream.getBits(16);
                 bitStream.skipBytes(6);
-                toc = [];
+                this.toc = [];
                 for(var i=0; i<tocSize; i++){
-                    toc[i] = bitStream.getByte();
+                    this.toc[i] = bitStream.getByte();
                 }
                 return bitStream;
             }else{
@@ -185,76 +158,6 @@ define(function(require, exports, module) {
         }while(tag!='Xing' && tag != 'Info' && tag != 'VBRI' && bitStream.getBytePos() < MAX_TAG_OFF)
 
         return false;
-    }
-    /*帧头信息--BEGIN*/
-    _proto_.getVerID = function(){
-        return verID;
-    }
-    _proto_.getLayer = function(){
-        return layer;
-    }
-    _proto_.getProtectionBit = function(){
-        return protectionBit;
-    }
-    _proto_.getBitRate = function(){
-        return bitRateMap[bitrateIndex];
-    }
-    _proto_.getSampleRate = function(){
-        return sampleRateMap[sampleRateIndex];
-    }
-    _proto_.getPaddingBit = function(){
-        return paddingBit;
-    }
-    _proto_.getPrivateBit = function(){
-        return privateBit;
-    }
-    _proto_.getChannelMode = function(){
-        return channelMode;
-    }
-    _proto_.getChannelModeExtension = function(){
-        return channelModeExtension;
-    }
-    _proto_.getCopyright = function(){
-        return copyright;
-    }
-    _proto_.getOriginal = function(){
-        return original;
-    }
-    _proto_.getEmphasis = function(){
-        return emphasis;
-    }
-    /*帧头信息--END*/
-    _proto_.getSideInfoSize = function(){
-        return sideInfoSize;
-    }
-    _proto_.getFramesize = function(){
-        return frameSize;
-    }
-    _proto_.getMaindatasize = function(){
-        return mainDataSize;
-    }
-    /*vbr信息--BEGIN*/
-    _proto_.getTotalFrames = function(){
-        return totalFrames;
-    }
-    _proto_.getTotalBytes = function(){
-        return totalBytes;
-    }
-    _proto_.getTocSize = function(){
-        return tocSize;
-    }
-    _proto_.getToc = function(){
-        return toc;
-    }
-    /*vbr信息--END*/
-    _proto_.getDuration = function(){
-        return duration;
-    }
-    _proto_.getTotalDuration = function(){
-        return totalDuration;
-    }
-    _proto_.getFrameSync = function(){
-        return frameSync;
     }
     return Header;
 })

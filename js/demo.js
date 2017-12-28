@@ -11,8 +11,8 @@ define(function(require, exports, module) {
     // });
     var totalTime = 0;
     var myRange = document.getElementById("myRange");
-    var mp3 = new Player('cbr.mp3', {
-        emptyUrl: 'empty.mp3',
+    var mp3 = new Player('./src/test.mp3', {
+        emptyUrl: './src/empty.mp3',
         AudioInfo: MP3Info,
         loadedmetaCb: function(info) {
             var data = '';

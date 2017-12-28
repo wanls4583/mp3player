@@ -43,12 +43,12 @@ define(function(require, exports, module) {
             	var header = new Mp3Header(arrayBuffer);
                 var result = header.parseHeader(true);
                 if(result){
-                    self.audioInfo.toc = header.getToc();
-                    self.audioInfo.totalSize = header.getTotalBytes();
-                    self.audioInfo.sampleRate = header.getSampleRate();
-                    self.audioInfo.frameSync = header.getFrameSync();
-                    self.audioInfo.totalTime = header.getTotalDuration();
-                    self.audioInfo.bitRate = header.getBitRate();
+                    self.audioInfo.toc = header.toc;
+                    self.audioInfo.totalSize = header.totalBytes;
+                    self.audioInfo.sampleRate = header.sampleRate;
+                    self.audioInfo.frameSync = header.frameSync;
+                    self.audioInfo.totalTime = header.totalDuration;
+                    self.audioInfo.bitRate = header.bitRate;
                     if(!self.audioInfo.toc){ //cbr模式
                         return self._getFooterLength();
                     }else{

@@ -41,7 +41,7 @@ define(function(require, exports, module) {
     _proto_.parseSideInfo = function() {
         bitStream.reset(); //指针指向头部
         var mask = 0;
-        var channelMode = header.getChannelMode();
+        var channelMode = header.channelMode;
         var offset = 0;
         channels = 0;
         bitStream.skipBits(24 - 11);

@@ -4,8 +4,6 @@
 define(function(require, exports, module) {
     'use strict';
 
-    var Header = require('./header');
-    var ScaleFactor = require('./scalefactor');
     var huffmanTable = require('./huffmantable');
 
     var header = null;
@@ -36,7 +34,7 @@ define(function(require, exports, module) {
      * 初始化比例因子带
      */
     _proto_.initSfbIndex = function(){
-    	switch (header.getSampleRate()) {
+    	switch (header.sampleRate) {
 		case 44100:
 			sfbIndexLong = [ 0, 4, 8, 12, 16, 20, 24, 30, 36, 44,
 					52, 62, 74, 90, 110, 134, 162, 196, 238, 288, 342, 418, 576 ];
