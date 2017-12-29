@@ -8,8 +8,8 @@
 
 <body>
     <script type="text/javascript">
-    seajs.use(['mp3/id3tag','mp3/header','mp3/sideinfo','mp3/scalefactor','mp3/huffman'],
-        function(Id3Tag, Header, Sideinfo, ScaleFactor, Huffman){
+    seajs.use(['mp3/id3tag','mp3/header','mp3/sideinfo','mp3/scalefactor','mp3/huffman', 'mp3/requantizer'],
+        function(Id3Tag, Header, Sideinfo, ScaleFactor, Huffman, Requantizer){
             var audioContext = new(AudioContext || WebkitAudioContext)();
 
             function load(begin, end, cb) {
@@ -34,7 +34,9 @@
                     var sideinfo = new Sideinfo(header.parseHeader(), header);
                     var scaleFactor = new ScaleFactor(sideinfo.parseSideInfo(), sideinfo);
                     var huffman = new Huffman(scaleFactor.parseScaleFactors(0,0), header, sideinfo);
-                    huffman.huffmanDecode(0,0);
+                    var hv = huffman.huffmanDecode(0,0);
+                    var requantizer = new Requantizer(sideinfo, header);
+                    var xrch = requantizer.doRequantizer(0,0,hv);
                 })
             });
     })

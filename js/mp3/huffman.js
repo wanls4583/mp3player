@@ -19,6 +19,7 @@ define(function(require, exports, module) {
         sideInfo = _sideInfo;
     	sideInfo.region1Start = [[],[]];
     	sideInfo.region2Start = [[],[]];
+        sideInfo.nozeroIndex = [[],[]];
     	if(!header){
     		throw new Error('帧头解析失败');
     	}
@@ -54,6 +55,14 @@ define(function(require, exports, module) {
 					104, 138, 180, 192 ];
 			break;
 		}
+        var widthLong = []; //长块比例因子带宽度
+        var widthShort = []; //短块比例因子带宽度
+        for (var i = 0; i < 22; i++)
+            widthLong[i] = sfbIndexLong[i + 1] - sfbIndexLong[i];
+        for (i = 0; i < 13; i++)
+            widthShort[i] = sfbIndexShort[i + 1] - sfbIndexShort[i];
+        sideInfo.widthLong = widthLong; //供后续逆量化
+        sideInfo.widthShort = widthShort; //供后续逆量化
     }
     /**
      * 获取从码表得到值的个数
@@ -182,13 +191,14 @@ define(function(require, exports, module) {
             hv[idx++] = x;
             hv[idx++] = y;
         }
+        sideInfo.nozeroIndex[gr][ch] = idx; //非零区索引，用于逆量化
         /**
          * 3.zero区
          */
         while(idx<576){
             hv[idx++] = 0;
         }
-        return bitStream;
+        return hv;
     }
     return  Huffman;
 })
