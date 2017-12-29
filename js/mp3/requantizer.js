@@ -21,10 +21,17 @@ define(function(require, exports, module) {
 
     var _proto_ = Requantizer.prototype;
 
+    /**
+     * 逆量化
+     * @param  number gr 颗粒索引
+     * @param  number ch 声道索引
+     * @param  array hv 哈夫曼解码后的value数组
+     * @return array  逆量化和重排序后的value数组
+     */
     _proto_.doRequantizer = function(gr, ch, hv) {
         var preflag = sideInfo.preflag[gr][ch] == 1;
         var shift = 1 + sideInfo.scalefac_scale[gr][ch];
-        var maxi = sideInfo.nozeroIndex[gr][ch];
+        var maxi = sideInfo.rzeroIndex[gr][ch];
         var requVal;
         var bi = 0, sfb = 0, width, pre, val, hvIdx = 0, xri = 0, scf = 0;
         var xriStart = 0; // 用于计算短块重排序后的下标

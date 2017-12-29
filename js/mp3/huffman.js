@@ -19,7 +19,7 @@ define(function(require, exports, module) {
         sideInfo = _sideInfo;
     	sideInfo.region1Start = [[],[]];
     	sideInfo.region2Start = [[],[]];
-        sideInfo.nozeroIndex = [[],[]];
+        sideInfo.rzeroIndex = [[],[]];
     	if(!header){
     		throw new Error('帧头解析失败');
     	}
@@ -191,7 +191,7 @@ define(function(require, exports, module) {
             hv[idx++] = x;
             hv[idx++] = y;
         }
-        sideInfo.nozeroIndex[gr][ch] = idx; //非零区索引，用于逆量化
+        sideInfo.rzeroIndex[gr][ch] = idx; //非零区索引，用于逆量化
         /**
          * 3.zero区
          */
