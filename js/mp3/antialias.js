@@ -26,41 +26,41 @@ define(function(require, exports , module){
 				return;
 			maxidx = 18;
 		} else
-			maxidx = rzeroIndex[ch] - 18;
+			maxidx = sideInfo.rzeroIndex[gr][ch] - 18;
 
 		for (i = 0; i < maxidx; i += 18) {
 			bu = xrch[i + 17];
 			bd = xrch[i + 18];
-			xrch[i + 17] = bu * 0.85749293f + bd * 0.51449576f;
-			xrch[i + 18] = bd * 0.85749293f - bu * 0.51449576f;
+			xrch[i + 17] = bu * 0.85749293 + bd * 0.51449576;
+			xrch[i + 18] = bd * 0.85749293 - bu * 0.51449576;
 			bu = xrch[i + 16];
 			bd = xrch[i + 19];
-			xrch[i + 16] = bu * 0.8817420f + bd * 0.47173197f;
-			xrch[i + 19] = bd * 0.8817420f - bu * 0.47173197f;
+			xrch[i + 16] = bu * 0.8817420 + bd * 0.47173197;
+			xrch[i + 19] = bd * 0.8817420 - bu * 0.47173197;
 			bu = xrch[i + 15];
 			bd = xrch[i + 20];
-			xrch[i + 15] = bu * 0.94962865f + bd * 0.31337745f;
-			xrch[i + 20] = bd * 0.94962865f - bu * 0.31337745f;
+			xrch[i + 15] = bu * 0.94962865 + bd * 0.31337745;
+			xrch[i + 20] = bd * 0.94962865 - bu * 0.31337745;
 			bu = xrch[i + 14];
 			bd = xrch[i + 21];
-			xrch[i + 14] = bu * 0.98331459f + bd * 0.18191320f;
-			xrch[i + 21] = bd * 0.98331459f - bu * 0.18191320f;
+			xrch[i + 14] = bu * 0.98331459 + bd * 0.18191320;
+			xrch[i + 21] = bd * 0.98331459 - bu * 0.18191320;
 			bu = xrch[i + 13];
 			bd = xrch[i + 22];
-			xrch[i + 13] = bu * 0.99551782f + bd * 0.09457419f;
-			xrch[i + 22] = bd * 0.99551782f - bu * 0.09457419f;
+			xrch[i + 13] = bu * 0.99551782 + bd * 0.09457419;
+			xrch[i + 22] = bd * 0.99551782 - bu * 0.09457419;
 			bu = xrch[i + 12];
 			bd = xrch[i + 23];
-			xrch[i + 12] = bu * 0.99916056f + bd * 0.04096558f;
-			xrch[i + 23] = bd * 0.99916056f - bu * 0.04096558f;
+			xrch[i + 12] = bu * 0.99916056 + bd * 0.04096558;
+			xrch[i + 23] = bd * 0.99916056 - bu * 0.04096558;
 			bu = xrch[i + 11];
 			bd = xrch[i + 24];
-			xrch[i + 11] = bu * 0.99989920f + bd * 0.0141986f;
-			xrch[i + 24] = bd * 0.99989920f - bu * 0.0141986f;
+			xrch[i + 11] = bu * 0.99989920 + bd * 0.0141986;
+			xrch[i + 24] = bd * 0.99989920 - bu * 0.0141986;
 			bu = xrch[i + 10];
 			bd = xrch[i + 25];
-			xrch[i + 10] = bu * 0.99999316f + bd * 3.69997467e-3f;
-			xrch[i + 25] = bd * 0.99999316f - bu * 3.69997467e-3f;
+			xrch[i + 10] = bu * 0.99999316 + bd * 3.69997467e-3;
+			xrch[i + 25] = bd * 0.99999316 - bu * 3.69997467e-3;
 		}
 	}
 })
