@@ -8,7 +8,6 @@ define(function(require, exports, module) {
 
     function Huffman(_bitStream, _header, _sideInfo){
         this.init(_bitStream, _header, _sideInfo)
-        this.initSfbIndex();
     }
 
     var _proto_ = Huffman.prototype;
@@ -97,6 +96,9 @@ define(function(require, exports, module) {
      * @param {number} ch 声道
      */
     _proto_.huffmanDecode = function(gr, ch){
+        if(!this.sideInfo.sfbIndexLong){
+            this.initSfbIndex();
+        }
         this.parseRegionStart(gr, ch);
         var part3len = this.sideInfo.part2_3_length[gr][ch] - this.sideInfo.part2_length[gr][ch];
         var x = this.sideInfo.region1Start[gr][ch];    // region1

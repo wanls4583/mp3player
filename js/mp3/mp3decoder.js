@@ -41,7 +41,7 @@ define(function(require, exports, module){
 		}
 	}
 
-	_proto_.decodeFrame = function(arrayBuffer){
+	_proto_.decodeFrame = function(){
 		var huffv = null; //哈夫曼解码结果
 		var xrch = null; //存储处理结果
 		var self = this;

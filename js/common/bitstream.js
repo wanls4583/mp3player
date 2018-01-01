@@ -234,8 +234,8 @@ define(function(require, exports, module) {
 	_proto_.append = function(byteArr){
 		var tmp = new Uint8Array(this.getSize());
 		if(this._bytePos>0){
-			tmp.set(this._uint8Array.slice(this._bytePos));
-			tmp.set(byteArr, this.getSize() - this._bytePos);
+			tmp.set(this._uint8Array.slice(this._bytePos), 0);
+			tmp.set(byteArr, this.end);
 		}else{
 			tmp.set(byteArr, 0);
 		}
