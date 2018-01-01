@@ -4,10 +4,8 @@
 define(function(require, exports , module){
 	'use strict';
 
-	var sideInfo = null;
-
 	function Antialias(_sideInfo){
-		sideInfo = _sideInfo;
+		this.sideInfo = _sideInfo;
 	}
 
 	var _proto_ = Antialias.prototype;
@@ -21,12 +19,12 @@ define(function(require, exports , module){
 		var i, maxidx;
 		var bu, bd;
 
-		if (sideInfo.block_type[gr][ch] == 2) {
-			if (sideInfo.mixed_block_flag[gr][ch] == 0)
+		if (this.sideInfo.block_type[gr][ch] == 2) {
+			if (this.sideInfo.mixed_block_flag[gr][ch] == 0)
 				return;
 			maxidx = 18;
 		} else
-			maxidx = sideInfo.rzeroIndex[gr][ch] - 18;
+			maxidx = this.sideInfo.rzeroIndex[gr][ch] - 18;
 
 		for (i = 0; i < maxidx; i += 18) {
 			bu = xrch[i + 17];
@@ -63,4 +61,6 @@ define(function(require, exports , module){
 			xrch[i + 25] = bd * 0.99999316 - bu * 3.69997467e-3;
 		}
 	}
+
+	return Antialias;
 })

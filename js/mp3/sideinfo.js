@@ -8,12 +8,10 @@ define(function(require, exports, module) {
     
     var HEADER_MASK = 0xffe0 >> 5; //同步头
     var MAX_TAG_OFF = 10 * 1024; //查找帧头，最多查找10K
-    var bitStream = null;
-    var header = null;
-    var channels = 0; //声道数
 
     function SideInfo(_bitStream, _header) {
-        this.init(_bitStream, _header);
+        this.bitStream = _bitStream;
+        this.header = _header;
     }
 
     var _proto_ = SideInfo.prototype;
@@ -23,9 +21,7 @@ define(function(require, exports, module) {
      * @param  {object} _bitStream 比特流对象
      * @param  {object} _header    帧头对象
      */
-    _proto_.init = function(_bitStream, _header){
-        bitStream = _bitStream;
-        header = _header;
+    _proto_.init = function(){
         /*帧变信息-BEGIN*/
         this.main_data_begin = 0; //主数据开始位置偏移量(<=0)
         this.private_bits = 0; //私有位(ISO在以后将不适用这些位)
@@ -52,38 +48,38 @@ define(function(require, exports, module) {
      */
     _proto_.parseSideInfo = function() {
         var mask = 0;
-        var channelMode = header.channelMode;
-        channels = 0;
-        this._init(); //初始化
-        this.main_data_begin = bitStream.getBits(9);
+        var channelMode = this.header.channelMode;
+        this.channels = 0;
+        this.init(); //初始化
+        this.main_data_begin = this.bitStream.getBits(9);
         if (channelMode == 3){
-            channels = 1;
-            bitStream.getBits(5); //private_bits  
+            this.channels = 1;
+            this.bitStream.getBits(5); //private_bits  
         }else{
-            channels = 2;
-            bitStream.getBits(3); //private_bits  
+            this.channels = 2;
+            this.bitStream.getBits(3); //private_bits  
         }
-        for (ch = 0; ch < channels; ch++) {
-            this.scfsi[0] = bitStream.getBits1();
-            this.scfsi[1] = bitStream.getBits1();
-            this.scfsi[2] = bitStream.getBits1();
-            this.scfsi[3] = bitStream.getBits1();
+        for (ch = 0; ch < this.channels; ch++) {
+            this.scfsi[0] = this.bitStream.getBits1();
+            this.scfsi[1] = this.bitStream.getBits1();
+            this.scfsi[2] = this.bitStream.getBits1();
+            this.scfsi[3] = this.bitStream.getBits1();
         }
         for (var gr = 0; gr < 2; gr++) {
-            for (var ch = 0; ch < channels; ch++) {
-                this.part2_3_length[gr][ch] = bitStream.getBits(12);
-                this.big_values[gr][ch] = bitStream.getBits(9);
-                this.global_gain[gr][ch] = bitStream.getBits(8);
-                this.scalefac_compress[gr][ch] = bitStream.getBits(4);
-                this.window_switching_flag[gr][ch] = bitStream.getBits1();
+            for (var ch = 0; ch < this.channels; ch++) {
+                this.part2_3_length[gr][ch] = this.bitStream.getBits(12);
+                this.big_values[gr][ch] = this.bitStream.getBits(9);
+                this.global_gain[gr][ch] = this.bitStream.getBits(8);
+                this.scalefac_compress[gr][ch] = this.bitStream.getBits(4);
+                this.window_switching_flag[gr][ch] = this.bitStream.getBits1();
                 if ((this.window_switching_flag[gr][ch]) != 0) {
-                    this.block_type[gr][ch] = bitStream.getBits(2);
-                    this.mixed_block_flag[gr][ch] = bitStream.getBits1();
-                    this.table_select[gr][ch][0] = bitStream.getBits(5);
-                    this.table_select[gr][ch][1] = bitStream.getBits(5);
-                    this.subblock_gain[gr][ch][0] = bitStream.getBits(3);
-                    this.subblock_gain[gr][ch][1] = bitStream.getBits(3);
-                    this.subblock_gain[gr][ch][2] = bitStream.getBits(3);
+                    this.block_type[gr][ch] = this.bitStream.getBits(2);
+                    this.mixed_block_flag[gr][ch] = this.bitStream.getBits1();
+                    this.table_select[gr][ch][0] = this.bitStream.getBits(5);
+                    this.table_select[gr][ch][1] = this.bitStream.getBits(5);
+                    this.subblock_gain[gr][ch][0] = this.bitStream.getBits(3);
+                    this.subblock_gain[gr][ch][1] = this.bitStream.getBits(3);
+                    this.subblock_gain[gr][ch][2] = this.bitStream.getBits(3);
                     if (this.block_type[gr][ch] == 0)
                         return false;
                     else if (this.block_type[gr][ch] == 2 && this.mixed_block_flag[gr][ch] == 0)
@@ -92,19 +88,19 @@ define(function(require, exports, module) {
                         this.region0_count[gr][ch] = 7;
                     this.region1_count[gr][ch] = 20 - this.region0_count[gr][ch];
                 } else {
-                    this.table_select[gr][ch][0] = bitStream.getBits(5);
-                    this.table_select[gr][ch][1] = bitStream.getBits(5);
-                    this.table_select[gr][ch][2] = bitStream.getBits(5);
-                    this.region0_count[gr][ch] = bitStream.getBits(4);
-                    this.region1_count[gr][ch] = bitStream.getBits(3);
+                    this.table_select[gr][ch][0] = this.bitStream.getBits(5);
+                    this.table_select[gr][ch][1] = this.bitStream.getBits(5);
+                    this.table_select[gr][ch][2] = this.bitStream.getBits(5);
+                    this.region0_count[gr][ch] = this.bitStream.getBits(4);
+                    this.region1_count[gr][ch] = this.bitStream.getBits(3);
                     this.block_type[gr][ch] = 0;
                 }
-                this.preflag[gr][ch] = bitStream.getBits1();
-                this.scalefac_scale[gr][ch] = bitStream.getBits1();
-                this.count1table_select[gr][ch] = bitStream.getBits1();
+                this.preflag[gr][ch] = this.bitStream.getBits1();
+                this.scalefac_scale[gr][ch] = this.bitStream.getBits1();
+                this.count1table_select[gr][ch] = this.bitStream.getBits1();
             }
         }
-        return bitStream; //返回bitStream，拱后续解析比例因子
+        return this.bitStream; //返回bitStream，拱后续解析比例因子
 
     }
 

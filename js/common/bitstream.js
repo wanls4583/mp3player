@@ -2,19 +2,19 @@
  * bit流模块
  */
 define(function(require, exports, module) {
-	var _uint8Array = null;
-	var _bytePos = 0; //当前bit位置
-	var _bitPos = 0; //当前字节位置
+	'use strict';
 
 	function BitStream(arrayBuffer){
 		if(arrayBuffer instanceof ArrayBuffer){
-			_uint8Array = new Uint8Array(arrayBuffer);
+			this._uint8Array = new Uint8Array(arrayBuffer);
 		}else if(typeof arrayBuffer == 'number'){
 			arrayBuffer = new ArrayBuffer(arrayBuffer);
-			_uint8Array = new Uint8Array(arrayBuffer);
+			this._uint8Array = new Uint8Array(arrayBuffer);
 		}else{
 			throw Error('参数错误');
 		}
+		this._bytePos = 0; //当前bit位置
+		this._bitPos = 0; //当前字节位置
 		this.buffer = arrayBuffer;
 		this.end = 0;
 	}
@@ -24,7 +24,7 @@ define(function(require, exports, module) {
 	 * @return  arraybuffer
 	 */
 	_proto_.getBuffer = function(){
-		return _uint8Array.buffer;
+		return this._uint8Array.buffer;
 	},
 	/**
 	 * 获取len个bit位
@@ -34,15 +34,15 @@ define(function(require, exports, module) {
 	_proto_.getBits = function(len){
 		var sum = 0;
 		var byte = 0;
-		if(_bytePos >= _uint8Array.length)
+		if(this._bytePos >= this._uint8Array.length)
 			return false;
-		for(var i=0; i<len && _bytePos < _uint8Array.length; i++){
-			byte = _uint8Array[_bytePos];
-			sum = (sum<<1) | ((byte>>(7-_bitPos))&1);
-			_bitPos++;
-			if(_bitPos%8 == 0){
-				_bytePos++;
-				_bitPos = 0;
+		for(var i=0; i<len && this._bytePos < this._uint8Array.length; i++){
+			byte = this._uint8Array[this._bytePos];
+			sum = (sum<<1) | ((byte>>(7-this._bitPos))&1);
+			this._bitPos++;
+			if(this._bitPos%8 == 0){
+				this._bytePos++;
+				this._bitPos = 0;
 			}
 		}
 		return sum;
@@ -52,13 +52,13 @@ define(function(require, exports, module) {
 	 * @return  number 0|1
 	 */
 	_proto_.getBits1 = function(len){
-		if(_bytePos >= _uint8Array.length)
+		if(this._bytePos >= this._uint8Array.length)
 			return false;
-		var bit = (_uint8Array[_bytePos]>>(7-_bitPos))&1;
-		_bitPos++;
-		if(_bitPos%8 == 0){
-			_bytePos++;
-			_bitPos = 0;
+		var bit = (this._uint8Array[this._bytePos]>>(7-this._bitPos))&1;
+		this._bitPos++;
+		if(this._bitPos%8 == 0){
+			this._bytePos++;
+			this._bitPos = 0;
 		}
 		return bit;
 	}
@@ -67,10 +67,10 @@ define(function(require, exports, module) {
 	 * @return  number 0|1
 	 */
 	_proto_.getByte = function(){
-		if(_bytePos >= _uint8Array.length)
+		if(this._bytePos >= this._uint8Array.length)
 			return false;
-		var byte = _uint8Array[_bytePos];
-		_bytePos++;
+		var byte = this._uint8Array[this._bytePos];
+		this._bytePos++;
 		return byte;
 	}
 	/**
@@ -95,86 +95,86 @@ define(function(require, exports, module) {
 	 * @retrun  number pos 位置
 	 */
 	_proto_.getBytePos = function(pos){
-		return _bytePos;
+		return this._bytePos;
 	}
 	/**
 	 * 返回bit位置
 	 * @retrun  number pos 位置
 	 */
 	_proto_.getBitPos = function(pos){
-		return _bitPos;
+		return this._bitPos;
 	}
 	/**
 	 * 设置字节位置
 	 * @param  number pos 位置
 	 */
 	_proto_.setBytePos = function(pos){
-		if(pos > _uint8Array.length){
-			pos = _uint8Array.length;
+		if(pos > this._uint8Array.length){
+			pos = this._uint8Array.length;
 		}
-		_bytePos = pos;
+		this._bytePos = pos;
 	}
 	/**
 	 * 设置bit位置
 	 * @param  number pos 位置
 	 */
 	_proto_.setBitPos = function(pos){
-		_bitPos = pos%8;
+		this._bitPos = pos%8;
 	}
 	/**
 	 * 设置一位bit
 	 */
 	_proto_.setBit = function(bytePos, bitPos, bit){
 		var byte = bit<<bitPos & 0xff;
-		if(bytePos >= _uint8Array.length){
+		if(bytePos >= this._uint8Array.length){
 			return;
 		}
-		_uint8Array[bytePos] = _uint8Array[bytePos] & byte;
+		this._uint8Array[bytePos] = this._uint8Array[bytePos] & byte;
 	}
 	/**
 	 * 设置一位bit
 	 */
 	_proto_.setByte = function(bytePos, byte){
-		if(bytePos >= _uint8Array.length){
+		if(bytePos >= this._uint8Array.length){
 			return;
 		}
-		_uint8Array[bytePos] = byte;
+		this._uint8Array[bytePos] = byte;
 	}
 	/**
 	 * 跳过len个bit
 	 */
 	_proto_.skipBits = function(len){
-		_bytePos = _bytePos + (((_bitPos+len)/8)>>0);
-		_bitPos = (_bitPos+len)%8;
-		if(_bytePos > _uint8Array.length){
-			_bytePos = _uint8Array.length;
+		this._bytePos = this._bytePos + (((this._bitPos+len)/8)>>0);
+		this._bitPos = (this._bitPos+len)%8;
+		if(this._bytePos > this._uint8Array.length){
+			this._bytePos = this._uint8Array.length;
 		}
 	}
 	/**
 	 * 跳过len个byte
 	 */
 	_proto_.skipBytes = function(len){
-		_bytePos = _bytePos + len;
-		if(_bytePos > _uint8Array.length){
-			_bytePos = _uint8Array.length;
+		this._bytePos = this._bytePos + len;
+		if(this._bytePos > this._uint8Array.length){
+			this._bytePos = this._uint8Array.length;
 		}
 	}
 	/**
 	 * 回退len个bit
 	 */
 	_proto_.rewindBits = function(len){
-		_bitPos = _bitPos - len;
-		if(_bitPos < 0){
-			_bitPos = 0;
+		this._bitPos = this._bitPos - len;
+		if(this._bitPos < 0){
+			this._bitPos = 0;
 		}
 	}
 	/**
 	 * 回退len个byte
 	 */
 	_proto_.rewindBytes = function(len){
-		_bytePos = _bytePos - len;
-		if(_bytePos < 0){
-			_bytePos = 0;
+		this._bytePos = this._bytePos - len;
+		if(this._bytePos < 0){
+			this._bytePos = 0;
 		}
 	}
 	/**
@@ -182,9 +182,9 @@ define(function(require, exports, module) {
 	 * @return  返回新的buffer
 	 */
 	_proto_.append = function(arrayBuffer){
-		var newBuffer = new ArrayBuffer(_uint8Array.length + arrayBuffer.length);
-		_uint8Array = new Uint8Array(newBuffer);
-		_uint8Array.set(arrayBuffer,_uint8Array.length - arrayBuffer.length);
+		var newBuffer = new ArrayBuffer(this._uint8Array.length + arrayBuffer.length);
+		this._uint8Array = new Uint8Array(newBuffer);
+		this._uint8Array.set(arrayBuffer,this._uint8Array.length - arrayBuffer.length);
 		return newBuffer;
 	}
 	/**
@@ -192,9 +192,9 @@ define(function(require, exports, module) {
 	 * @return  返回新的buffer
 	 */
 	_proto_.unshift = function(arrayBuffer){
-		var newBuffer = new ArrayBuffer(_uint8Array.length + arrayBuffer.length);
-		_uint8Array = new Uint8Array(newBuffer);
-		_uint8Array.set(arrayBuffer,0);
+		var newBuffer = new ArrayBuffer(this._uint8Array.length + arrayBuffer.length);
+		this._uint8Array = new Uint8Array(newBuffer);
+		this._uint8Array.set(arrayBuffer,0);
 		return newBuffer;
 	}
 	/**
@@ -202,21 +202,21 @@ define(function(require, exports, module) {
 	 * @return  boolean
 	 */
 	_proto_.isEnd = function(){
-		return _bytePos >= _uint8Array.length;
+		return this._bytePos >= this._uint8Array.length;
 	}
 	/**
 	 * 返回流字节个数
 	 * @return  number
 	 */
 	_proto_.getSize = function(){
-		return _uint8Array.length;
+		return this._uint8Array.length;
 	}
 	/**
 	 * 重头开始
 	 */
 	_proto_.reset = function(){
-		_bitPos = 0;
-		_bytePos = 0;
+		this._bitPos = 0;
+		this._bytePos = 0;
 	}
 	/**
 	 * 比特流数组截取
@@ -225,7 +225,7 @@ define(function(require, exports, module) {
 	 * @return {arrary}       比特流数组
 	 */
 	_proto_.slice = function(begin, end){
-		retrun _uint8Array.slice(begin, end);
+		return this._uint8Array.slice(begin, end);
 	}
 	/**
 	 * 追加数据
@@ -233,15 +233,15 @@ define(function(require, exports, module) {
 	 */
 	_proto_.append = function(byteArr){
 		var tmp = new Uint8Array(this.getSize());
-		if(_bytePos>0){
-			tmp.set(_uint8Array.slice(_bytePos));
-			tmp.set(this.getSize() - _bytePos, byteArr);
+		if(this._bytePos>0){
+			tmp.set(this._uint8Array.slice(this._bytePos));
+			tmp.set(byteArr, this.getSize() - this._bytePos);
 		}else{
-			tmp.set(0, byteArr);
+			tmp.set(byteArr, 0);
 		}
-		this.end = _bytePos + byteArr.length; //有效数据尾
-		_uint8Array = tmp;
-		_bytePos = 0;
+		this.end = this._bytePos + byteArr.length; //有效数据尾
+		this._uint8Array = tmp;
+		this._bytePos = 0;
 	}
 	return BitStream;
 })

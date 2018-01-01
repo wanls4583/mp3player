@@ -37,11 +37,10 @@ define(function(require, exports, module) {
     var LAYER3 = 1;
     var MAX_TAG_OFF = 10 * 1024; //查找帧头，最多查找10K
 
-    var bitStream = null;
     var hasParseVbr = false;
 
-    function Header(arrayBuffer){
-        this.init(arrayBuffer);
+    function Header(_bitStream){
+        this.init(_bitStream);
     }
 
     var _proto_ = Header.prototype;
@@ -51,7 +50,7 @@ define(function(require, exports, module) {
      * @param  {object} arrayBuffer 二进制数组
      */
     _proto_.init = function(_bitStream){
-        bitStream = _bitStream;
+        this.bitStream = _bitStream;
     }
     /**
      * 解析帧头信息
@@ -59,34 +58,35 @@ define(function(require, exports, module) {
      */
     _proto_.parseHeader = function(){
         var mask = 0;
+        var beginPos = this.bitStream.getBytePos();
         do{
-            mask = bitStream.getBits(11); //获取11位同步头
+            mask = this.bitStream.getBits(11); //获取11位同步头
             if(mask != HEADER_MASK){
-                if(bitStream.isEnd()){
+                if(this.bitStream.isEnd()){
                     break;
                 }
-                bitStream.rewindBits(3);
+                this.bitStream.rewindBits(3);
                 continue;
             }
-            this.verID = bitStream.getBits(2); //MPEG版本
-            this.layer = bitStream.getBits(2); //MPEG层数
-            this.protectionBit = bitStream.getBits(1); //保护位
+            this.verID = this.bitStream.getBits(2); //MPEG版本
+            this.layer = this.bitStream.getBits(2); //MPEG层数
+            this.protectionBit = this.bitStream.getBits(1); //保护位
             if(!this.frameSync){
-                bitStream.rewindBytes(2);
-                this.frameSync = bitStream.getBits(8).toString(16)+','+bitStream.getBits(8).toString(16);
+                this.bitStream.rewindBytes(2);
+                this.frameSync = this.bitStream.getBits(8).toString(16)+','+this.bitStream.getBits(8).toString(16);
                 this.frameSync = this.frameSync.toUpperCase(); //同步头
             }
-            this.bitrateIndex = bitStream.getBitsStr(4);
+            this.bitrateIndex = this.bitStream.getBitsStr(4);
             this.bitRate = bitRateMap[this.bitrateIndex]; //比特率
-            this.sampleRateIndex = bitStream.getBitsStr(2);
+            this.sampleRateIndex = this.bitStream.getBitsStr(2);
             this.sampleRate = sampleRateMap[this.sampleRateIndex]; //采样路索引
-            this.paddingBit = bitStream.getBits(1); //填充位
-            this.privateBit = bitStream.getBits(1); //私有位
-            this.channelMode = bitStream.getBits(2); //声道模式
-            this.channelModeExtension = bitStream.getBits(2); //声道扩展模式
-            this.copyright = bitStream.getBits(1); //版权
-            this.original = bitStream.getBits(1); //填充位
-            this.emphasis = bitStream.getBits(2); //强调
+            this.paddingBit = this.bitStream.getBits(1); //填充位
+            this.privateBit = this.bitStream.getBits(1); //私有位
+            this.channelMode = this.bitStream.getBits(2); //声道模式
+            this.channelModeExtension = this.bitStream.getBits(2); //声道扩展模式
+            this.copyright = this.bitStream.getBits(1); //版权
+            this.original = this.bitStream.getBits(1); //填充位
+            this.emphasis = this.bitStream.getBits(2); //强调
 
             if(this.verID!=MPEG1 || this.layer!=LAYER3){
                 return false;
@@ -104,9 +104,9 @@ define(function(require, exports, module) {
                 this.mainDataSize -= 2;  //CRC
             break;
 
-        }while(bitStream.getBytePos() < MAX_TAG_OFF);
+        }while(this.bitStream.getBytePos() - beginPos < MAX_TAG_OFF);
 
-        if(bitStream.getBytePos() >= MAX_TAG_OFF){
+        if(this.bitStream.getBytePos() - beginPos >= MAX_TAG_OFF){
             return false;
         }
 
@@ -117,7 +117,7 @@ define(function(require, exports, module) {
                 this.totalDuration = this.totalFrames*1152/sampleRateMap[this.sampleRateIndex]; //总时长
             }
         }
-        return bitStream;
+        return this.bitStream;
     }
     /**
      * 解析vbr信息
@@ -125,44 +125,44 @@ define(function(require, exports, module) {
     _proto_.parseVbr = function(){
         var flags = 0;
         var tag = '';
-        bitStream.reset(); //指针指向头部
+        this.bitStream.reset(); //指针指向头部
 
         do{
-            tag = String.fromCharCode(bitStream.getByte(), bitStream.getByte(), bitStream.getByte(), bitStream.getByte());
+            tag = String.fromCharCode(this.bitStream.getByte(), this.bitStream.getByte(), this.bitStream.getByte(), this.bitStream.getByte());
             if(tag == 'Xing' || tag == 'Info'){ //Xing，Info头
                 this.tocSize = 100; //vbr索引表长度
-                flags = bitStream.getBits(32);
+                flags = this.bitStream.getBits(32);
                 if(flags & 1){
-                    this.totalFrames = bitStream.getBits(32); //总帧数
+                    this.totalFrames = this.bitStream.getBits(32); //总帧数
                 }
                 if(flags & 2){
-                    this.totalBytes = bitStream.getBits(32); //总长度
+                    this.totalBytes = this.bitStream.getBits(32); //总长度
                 }
                 if(flags & 4){
                     this.toc = []; //vbr索引表
                     for(var i=0; i<this.tocSize; i++){
-                        this.toc[i] = bitStream.getByte();
+                        this.toc[i] = this.bitStream.getByte();
                     }
                 }
-                return bitStream;
+                return this.bitStream;
             }else if(tag == 'VBRI'){ //VBRI头
-                bitStream.skipBytes(6);
-                this.totalBytes = bitStream.getBits(32);
-                this.totalFrames = bitStream.getBits(32);
-                this.tocSize = bitStream.getBits(16);
-                bitStream.skipBytes(6);
+                this.bitStream.skipBytes(6);
+                this.totalBytes = this.bitStream.getBits(32);
+                this.totalFrames = this.bitStream.getBits(32);
+                this.tocSize = this.bitStream.getBits(16);
+                this.bitStream.skipBytes(6);
                 this.toc = [];
                 for(var i=0; i<tocSize; i++){
-                    this.toc[i] = bitStream.getByte();
+                    this.toc[i] = this.bitStream.getByte();
                 }
-                return bitStream;
+                return this.bitStream;
             }else{
-                if(bitStream.isEnd()){
+                if(this.bitStream.isEnd()){
                     break;
                 }
-                bitStream.rewindBytes(3);
+                this.bitStream.rewindBytes(3);
             }
-        }while(tag!='Xing' && tag != 'Info' && tag != 'VBRI' && bitStream.getBytePos() < MAX_TAG_OFF)
+        }while(tag!='Xing' && tag != 'Info' && tag != 'VBRI' && this.bitStream.getBytePos() < MAX_TAG_OFF)
 
         return false;
     }

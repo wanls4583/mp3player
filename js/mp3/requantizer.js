@@ -4,19 +4,18 @@
 define(function(require, exports, module) {
     'use strict';
 
-    var sideInfo = null;
-    var header = null;
     var pretab = [0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,2,2,3,3,3,2,0]; //Layer III Preemphasis
 	var floatPowIS = new Array(8207); // 用于查表求 v^(4/3)，v是经哈夫曼解码出的一个(正)值，该值的范围是0..8191
-	for (var i = 0; i < 8207; i++)
+	var floatPow2 = [];
+    for (var i = 0; i < 8207; i++)
 		floatPowIS[i] = Math.pow(i, 4.0 / 3.0);
     var floatPow2 = new Array(328 + 46); //查表法时下标范围为0..328+45.
 	for (i = 0; i < 374; i++)
 		floatPow2[i] = Math.pow(2.0, -0.25 * (i - 45));
 
     function Requantizer(_sideInfo, _header) {
-    	sideInfo = _sideInfo;
-    	header = _header;
+    	this.sideInfo = _sideInfo;
+    	this.header = _header;
     }
 
     var _proto_ = Requantizer.prototype;
@@ -29,26 +28,26 @@ define(function(require, exports, module) {
      * @return array  逆量化和重排序后的value数组
      */
     _proto_.doRequantizer = function(gr, ch, hv) {
-        var preflag = sideInfo.preflag[gr][ch] == 1;
-        var shift = 1 + sideInfo.scalefac_scale[gr][ch];
-        var maxi = sideInfo.rzeroIndex[gr][ch];
+        var preflag = this.sideInfo.preflag[gr][ch] == 1;
+        var shift = 1 + this.sideInfo.scalefac_scale[gr][ch];
+        var maxi = this.sideInfo.rzeroIndex[gr][ch];
         var requVal;
         var bi = 0, sfb = 0, width, pre, val, hvIdx = 0, xri = 0, scf = 0;
         var xriStart = 0; // 用于计算短块重排序后的下标
-        var pow2i = 255 - sideInfo.global_gain[gr][ch];
+        var pow2i = 255 - this.sideInfo.global_gain[gr][ch];
         var rzeroBandShort = [];
         var rzeroBandLong = -1;
         var xrch = []; //逆量化结果
 
-        if (header.channelModeExtension==2 || header.channelModeExtension==3) //isMS
+        if (this.header.channelModeExtension==2 || this.header.channelModeExtension==3) //isMS
             pow2i += 2; // 若声道模式为ms_stereo,要除以根2
 
         // pure SHORT blocks:
         // window_switching_flag=1, block_type=2, mixed_block_flag=0
 
-        if (sideInfo.window_switching_flag[gr][ch] == 1 && sideInfo.block_type[gr][ch] == 2) {
+        if (this.sideInfo.window_switching_flag[gr][ch] == 1 && this.sideInfo.block_type[gr][ch] == 2) {
             rzeroBandShort[0] = rzeroBandShort[1] = rzeroBandShort[2] = -1;
-            if (sideInfo.mixed_block_flag[gr][ch] == 1) {
+            if (this.sideInfo.mixed_block_flag[gr][ch] == 1) {
                 /*
                  * 混合块:
                  * 混合块的前8个频带是长块。 前8块各用一个增益因子逆量化，这8个增益因子 的频带总和为36，
@@ -56,9 +55,9 @@ define(function(require, exports, module) {
                  */
                 rzeroBandLong = -1;
                 for (; sfb < 8; sfb++) {
-                    pre = sideInfo.preflag[gr][ch] ? pretab[sfb] : 0;
-                    requVal = floatPow2[pow2i + ((sideInfo.scfL[ch][sfb] + pre) << shift)];
-                    width = sideInfo.widthLong[sfb];
+                    pre = this.sideInfo.preflag[gr][ch] ? pretab[sfb] : 0;
+                    requVal = floatPow2[pow2i + ((this.sideInfo.scfL[ch][sfb] + pre) << shift)];
+                    width = this.sideInfo.widthLong[sfb];
                     for (bi = 0; bi < width; bi++) {
                         val = hv[hvIdx]; // 哈夫曼值
                         if (val < 0) {
@@ -85,15 +84,15 @@ define(function(require, exports, module) {
             }
 
             // 短块(混合块中的短块和纯短块)
-            var subgain = subblock_gain[gr][ch];
+            var subgain = this.sideInfo.subblock_gain[gr][ch];
             var win;
             subgain[0] <<= 3;
             subgain[1] <<= 3;
             subgain[2] <<= 3;
             for (; hvIdx < maxi; sfb++) {
-                width = widthShort[sfb];
+                width = this.sideInfo.widthShort[sfb];
                 for (win = 0; win < 3; win++) {
-                    requVal = floatPow2[pow2i + subgain[win] + (sideInfo.scfS[ch][scf++] << shift)];
+                    requVal = floatPow2[pow2i + subgain[win] + (this.sideInfo.scfS[ch][scf++] << shift)];
                     xri = xriStart + win;
                     for (bi = 0; bi < width; bi++) {
                         val = hv[hvIdx];
@@ -120,8 +119,8 @@ define(function(require, exports, module) {
             xri = -1;
             for (; hvIdx < maxi; sfb++) {
                 pre = preflag ? pretab[sfb] : 0;
-                requVal = floatPow2[pow2i + ((sideInfo.scfL[ch][sfb] + pre) << shift)];
-                bi = hvIdx + sideInfo.widthLong[sfb];
+                requVal = floatPow2[pow2i + ((this.sideInfo.scfL[ch][sfb] + pre) << shift)];
+                bi = hvIdx + this.sideInfo.widthLong[sfb];
                 for (; hvIdx < bi; hvIdx++) {
                     val = hv[hvIdx];
                     if (val < 0) {
@@ -140,8 +139,8 @@ define(function(require, exports, module) {
         // 不逆量化0值区,置0.
         for (; hvIdx < 576; hvIdx++)
             xrch[hvIdx] = 0;
-        sideInfo.rzeroBandLong = rzeroBandLong; //用于强度立体声(intensity stereo)处理
-        sideInfo.rzeroBandShort = rzeroBandShort; //用于强度立体声处理
+        this.sideInfo.rzeroBandLong = rzeroBandLong; //用于强度立体声(intensity stereo)处理
+        this.sideInfo.rzeroBandShort = rzeroBandShort; //用于强度立体声处理
 
         return xrch;
     }

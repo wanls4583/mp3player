@@ -71,13 +71,13 @@ define(function(require, exports, module){
 		19668f,-2979.5f,2758.5f,-1000f,259.5f,-109f,15.5f,0.5f]
 	];
 
-	var step = 0;
-	var fifobuf = [];
-	var fifoIndex = [0,0];
-	va pcmbuff = [];
 	function Synthesis(channels){
+		this.step = 0;
+		this.fifobuf = [];
+		this.fifoIndex = [0,0];
+		this.pcmbuff = [];
 		for(var i=0; i<channels; i++){
-			fifoIndex[i] = new Array(1024);
+			this.fifoIndex[i] = new Array(1024);
 		}
 	}
 
@@ -474,21 +474,21 @@ define(function(require, exports, module){
 	}
 
 	_proto_.synthesisSubBand = function(samples, ch) {
-		var fifo = fifobuf[ch];
+		var fifo = this.fifobuf[ch];
 		var sum, win = [];
 		var i;
 
 		//1. Shift
-		fifoIndex[ch] = (fifoIndex[ch] - 64) & 0x3FF;
+		this.fifoIndex[ch] = (this.fifoIndex[ch] - 64) & 0x3FF;
 		//960,896,832,768,704,640,576,512,448,384,320,256,192,128,64,0
 
 		//2. Matrixing
-		dct32to64(samples, fifo, fifoIndex[ch]);
+		dct32to64(samples, fifo, this.fifoIndex[ch]);
 
 		//3. Build the U vector
 		//4. Dewindowing
 		//5. Calculate and output 32 samples
-		switch(fifoIndex[ch]) {
+		switch(this.fifoIndex[ch]) {
 		case 0:
 		//u_vector={0,96,128,224,256,352,384,480,512,608,640,736,768,864,896,992}=u_base
 			for(i = 0; i < 32; i++) {
@@ -510,7 +510,7 @@ define(function(require, exports, module){
 				sum += win[14] * fifo[i + 896];
 				sum += win[15] * fifo[i + 992];
 				pcmi = sum > 32767 ? 32767 : (sum < -32768 ? -32768 : sum); //clip
-				pcmbuff[pcmbuff.length] = pcmi/(pcmi>0 ? 32767 : 32768);
+				this.pcmbuff[this.pcmbuff.length] = pcmi/(pcmi>0 ? 32767 : 32768);
 			}
 			break;
 		case 64:
@@ -534,7 +534,7 @@ define(function(require, exports, module){
 				sum += win[14] * fifo[i + 960];
 				sum += win[15] * fifo[i + 32];
 				pcmi = sum > 32767 ? 32767 : (sum < -32768 ? -32768 : sum);
-				pcmbuff[pcmbuff.length] = pcmi/(pcmi>0 ? 32767 : 32768);
+				this.pcmbuff[this.pcmbuff.length] = pcmi/(pcmi>0 ? 32767 : 32768);
 			}
 			break;
 		case 128:
@@ -558,7 +558,7 @@ define(function(require, exports, module){
 				sum += win[14] * fifo[i];
 				sum += win[15] * fifo[i + 96];
 				pcmi = sum > 32767 ? 32767 : (sum < -32768 ? -32768 : sum);
-				pcmbuff[pcmbuff.length] = pcmi/(pcmi>0 ? 32767 : 32768);
+				this.pcmbuff[this.pcmbuff.length] = pcmi/(pcmi>0 ? 32767 : 32768);
 			}
 			break;
 		case 192:
@@ -582,7 +582,7 @@ define(function(require, exports, module){
 				sum += win[14] * fifo[i + 64];
 				sum += win[15] * fifo[i + 160];
 				pcmi = sum > 32767 ? 32767 : (sum < -32768 ? -32768 : sum);
-				pcmbuff[pcmbuff.length] = pcmi/(pcmi>0 ? 32767 : 32768);
+				this.pcmbuff[this.pcmbuff.length] = pcmi/(pcmi>0 ? 32767 : 32768);
 			}
 			break;
 		case 256:
@@ -606,7 +606,7 @@ define(function(require, exports, module){
 				sum += win[14] * fifo[i + 128];
 				sum += win[15] * fifo[i + 224];
 				pcmi = sum > 32767 ? 32767 : (sum < -32768 ? -32768 : sum);
-				pcmbuff[pcmbuff.length] = pcmi/(pcmi>0 ? 32767 : 32768);
+				this.pcmbuff[this.pcmbuff.length] = pcmi/(pcmi>0 ? 32767 : 32768);
 			}
 			break;
 		case 320:
@@ -630,7 +630,7 @@ define(function(require, exports, module){
 				sum += win[14] * fifo[i + 192];
 				sum += win[15] * fifo[i + 288];
 				pcmi = sum > 32767 ? 32767 : (sum < -32768 ? -32768 : sum);
-				pcmbuff[pcmbuff.length] = pcmi/(pcmi>0 ? 32767 : 32768);
+				this.pcmbuff[this.pcmbuff.length] = pcmi/(pcmi>0 ? 32767 : 32768);
 			}
 			break;
 		case 384:
@@ -654,7 +654,7 @@ define(function(require, exports, module){
 				sum += win[14] * fifo[i + 256];
 				sum += win[15] * fifo[i + 352];
 				pcmi = sum > 32767 ? 32767 : (sum < -32768 ? -32768 : sum);
-				pcmbuff[pcmbuff.length] = pcmi/(pcmi>0 ? 32767 : 32768);
+				this.pcmbuff[this.pcmbuff.length] = pcmi/(pcmi>0 ? 32767 : 32768);
 			}
 			break;
 		case 448:
@@ -678,7 +678,7 @@ define(function(require, exports, module){
 				sum += win[14] * fifo[i + 320];
 				sum += win[15] * fifo[i + 416];
 				pcmi = sum > 32767 ? 32767 : (sum < -32768 ? -32768 : sum);
-				pcmbuff[pcmbuff.length] = pcmi/(pcmi>0 ? 32767 : 32768);
+				this.pcmbuff[this.pcmbuff.length] = pcmi/(pcmi>0 ? 32767 : 32768);
 			}
 			break;
 		case 512:
@@ -702,7 +702,7 @@ define(function(require, exports, module){
 				sum += win[14] * fifo[i + 384];
 				sum += win[15] * fifo[i + 480];
 				pcmi = sum > 32767 ? 32767 : (sum < -32768 ? -32768 : sum);
-				pcmbuff[pcmbuff.length] = pcmi/(pcmi>0 ? 32767 : 32768);
+				this.pcmbuff[this.pcmbuff.length] = pcmi/(pcmi>0 ? 32767 : 32768);
 			}
 			break;
 		case 576:
@@ -726,7 +726,7 @@ define(function(require, exports, module){
 				sum += win[14] * fifo[i + 448];
 				sum += win[15] * fifo[i + 544];
 				pcmi = sum > 32767 ? 32767 : (sum < -32768 ? -32768 : sum);
-				pcmbuff[pcmbuff.length] = pcmi/(pcmi>0 ? 32767 : 32768);
+				this.pcmbuff[this.pcmbuff.length] = pcmi/(pcmi>0 ? 32767 : 32768);
 			}
 			break;
 		case 640:
@@ -750,7 +750,7 @@ define(function(require, exports, module){
 				sum += win[14] * fifo[i + 512];
 				sum += win[15] * fifo[i + 608];
 				pcmi = sum > 32767 ? 32767 : (sum < -32768 ? -32768 : sum);
-				pcmbuff[pcmbuff.length] = pcmi/(pcmi>0 ? 32767 : 32768);
+				this.pcmbuff[this.pcmbuff.length] = pcmi/(pcmi>0 ? 32767 : 32768);
 			}
 			break;
 		case 704:
@@ -774,7 +774,7 @@ define(function(require, exports, module){
 				sum += win[14] * fifo[i + 576];
 				sum += win[15] * fifo[i + 672];
 				pcmi = sum > 32767 ? 32767 : (sum < -32768 ? -32768 : sum);
-				pcmbuff[pcmbuff.length] = pcmi/(pcmi>0 ? 32767 : 32768);
+				this.pcmbuff[this.pcmbuff.length] = pcmi/(pcmi>0 ? 32767 : 32768);
 			}
 			break;
 		case 768:
@@ -798,7 +798,7 @@ define(function(require, exports, module){
 				sum += win[14] * fifo[i + 640];
 				sum += win[15] * fifo[i + 736];
 				pcmi = sum > 32767 ? 32767 : (sum < -32768 ? -32768 : sum);
-				pcmbuff[pcmbuff.length] = pcmi/(pcmi>0 ? 32767 : 32768);
+				this.pcmbuff[this.pcmbuff.length] = pcmi/(pcmi>0 ? 32767 : 32768);
 			}
 			break;
 		case 832:
@@ -822,7 +822,7 @@ define(function(require, exports, module){
 				sum += win[14] * fifo[i + 704];
 				sum += win[15] * fifo[i + 800];
 				pcmi = sum > 32767 ? 32767 : (sum < -32768 ? -32768 : sum);
-				pcmbuff[pcmbuff.length] = pcmi/(pcmi>0 ? 32767 : 32768);
+				this.pcmbuff[this.pcmbuff.length] = pcmi/(pcmi>0 ? 32767 : 32768);
 			}
 			break;
 		case 896:
@@ -846,7 +846,7 @@ define(function(require, exports, module){
 				sum += win[14] * fifo[i + 768];
 				sum += win[15] * fifo[i + 864];
 				pcmi = sum > 32767 ? 32767 : (sum < -32768 ? -32768 : sum);
-				pcmbuff[pcmbuff.length] = pcmi/(pcmi>0 ? 32767 : 32768);
+				this.pcmbuff[this.pcmbuff.length] = pcmi/(pcmi>0 ? 32767 : 32768);
 			}
 			break;
 		case 960:
@@ -870,7 +870,7 @@ define(function(require, exports, module){
 				sum += win[14] * fifo[i + 832];
 				sum += win[15] * fifo[i + 928];
 				pcmi = sum > 32767 ? 32767 : (sum < -32768 ? -32768 : sum);
-				pcmbuff[pcmbuff.length] = pcmi/(pcmi>0 ? 32767 : 32768);
+				this.pcmbuff[this.pcmbuff.length] = pcmi/(pcmi>0 ? 32767 : 32768);
 			}
 			break;
 		}

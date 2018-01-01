@@ -25,10 +25,8 @@ define(function(require, exports, module) {
 		-0.4319343,-0.4000996,-0.3689899,-0.3381170,-0.3070072,-0.2751725,
 		-0.2420785,-0.2071068,-0.1695052,-0.1283151,-0.0822624,-0.0295815] ];
 
-	var sideInfo = null;;
-
 	function Imdct(_sideInfo){
-		sideInfo = _sideInfo;
+		this.sideInfo = _sideInfo;
 	}
 
 	var _proto_ = Imdct.prototype;
@@ -52,18 +50,18 @@ define(function(require, exports, module) {
 
 			//>>> 3-point IDCT on even
 			out1 = (in1 = io[i]) - (in2 = io[12 + i]);
-			in3 = in1 + in2 * 0.5f;
-			in4 = io[6 + i] * 0.8660254f;
+			in3 = in1 + in2 * 0.5;
+			in4 = io[6 + i] * 0.8660254;
 			out0 = in3 + in4;
 			out2 = in3 - in4;
 			//<<< End 3-point IDCT on even
 
 			//>>> 3-point IDCT on odd (for 6-point IDCT)
-			out4 = ((in1 = io[3 + i]) - (in2 = io[15 + i])) * 0.7071068f;
-			in3 = in1 + in2 * 0.5f;
-			in4 = io[9 + i] * 0.8660254f;
-			out5 = (in3 + in4) * 0.5176381f;
-			out3 = (in3 - in4) * 1.9318516f;
+			out4 = ((in1 = io[3 + i]) - (in2 = io[15 + i])) * 0.7071068;
+			in3 = in1 + in2 * 0.5;
+			in4 = io[9 + i] * 0.8660254;
+			out5 = (in3 + in4) * 0.5176381;
+			out3 = (in3 - in4) * 1.9318516;
 			//<<< End 3-point IDCT on odd
 
 			// Output: butterflies on 2,3-point IDCT's (for 6-point IDCT)
@@ -73,11 +71,11 @@ define(function(require, exports, module) {
 			//<<<<<< End 6-point IDCT
 			//<<<<<<<<<<<< End 12-point IDCT
 
-			tmp = out3 * 0.1072064f;
+			tmp = out3 * 0.1072064;
 			switch(j) {
 			case 0:
 				out6  = tmp;
-				out7  = out4 * 0.5f;
+				out7  = out4 * 0.5;
 				out8  = out5 * 2.3319512;
 				out9  = -out5 * 3.0390580;
 				out10 = -out4 * 1.2071068;
@@ -175,7 +173,7 @@ define(function(require, exports, module) {
 		 *      out18[m] = sum;
 		 *  }
 		 */
-		in0 = io[i + 0] + io[i + 12] * 0.5f;
+		in0 = io[i + 0] + io[i + 12] * 0.5;
 		in1 = io[i + 0] - io[i + 12];
 		in2 = io[i + 8] + io[i + 16] - io[i + 4];
 
@@ -320,13 +318,13 @@ define(function(require, exports, module) {
 	}
 	
 	_proto_.hybrid = function(gr, ch, xrch, preb) {
-		var maxi = sideInfo.rzeroIndex[ch];
-		int i, block_type;
+		var maxi = this.sideInfo.rzeroIndex[ch];
+		var i, block_type;
 		
 		for (i = 0; i < maxi; i += 18) {
-			block_type = ((sideInfo.window_switching_flag[gr][ch] != 0)
-					&& (sideInfo.mixed_block_flag[gr][ch] != 0) && (i < 36)) ? 0
-					: sideInfo.block_type[gr][ch];
+			block_type = ((this.sideInfo.window_switching_flag[gr][ch] != 0)
+					&& (this.sideInfo.mixed_block_flag[gr][ch] != 0) && (i < 36)) ? 0
+					: this.sideInfo.block_type[gr][ch];
 
 			if(block_type == 2)
 				imdct12(xrch, preb, i);
@@ -341,4 +339,5 @@ define(function(require, exports, module) {
 		}
 	}
 	
+	return Imdct;
 })

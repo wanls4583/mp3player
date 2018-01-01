@@ -4,10 +4,8 @@
 define(function(require, exports, module) {
     'use strict';
 
-    var sideInfo = null; 
-
     function Stereo(_sideInfo){
-    	sideInfo = _sideInfo;
+    	this.sideInfo = _sideInfo;
     }
 
     var _proto_ = Stereo.prototype;
@@ -19,7 +17,7 @@ define(function(require, exports, module) {
      */
     _proto_.ms_stereo = function(gr, xrch){
     	var xr0 = xrch[0], xr1 = xrch[1];
-		var rzero_xr = (sideInfo.rzeroIndex[gr][0] > sideInfo.rzeroIndex[gr][1]) ? sideInfo.rzeroIndex[gr][0] : sideInfo.rzeroIndex[gr][1];
+		var rzero_xr = (this.sideInfo.rzeroIndex[gr][0] > this.sideInfo.rzeroIndex[gr][1]) ? this.sideInfo.rzeroIndex[gr][0] : this.sideInfo.rzeroIndex[gr][1];
 		var tmp0, tmp1;
 		
 		for (var xri = 0; xri < rzero_xr; xri++) {
@@ -28,10 +26,12 @@ define(function(require, exports, module) {
 			xr0[xri] = tmp0 + tmp1;
 			xr1[xri] = tmp0 - tmp1;
 		}
-		sideInfo.rzeroIndex[gr][0] = sideInfo.rzeroIndex[gr][1] = rzero_xr; // ...不然可能导致声音细节丢失  
+		this.sideInfo.rzeroIndex[gr][0] = this.sideInfo.rzeroIndex[gr][1] = rzero_xr; // ...不然可能导致声音细节丢失  
     }
     /**
      * intensity stereo立体声处理（很难听出差别，可不处理）
      */
     _proto_.i_stereo = function(){}
+
+    return Stereo;
 })
