@@ -16,6 +16,7 @@ define(function(require, exports, module) {
 			throw Error('参数错误');
 		}
 		this.buffer = arrayBuffer;
+		this.end = 0;
 	}
 	var _proto_ = BitStream.prototype;
 	/**
@@ -215,6 +216,31 @@ define(function(require, exports, module) {
 	 */
 	_proto_.reset = function(){
 		_bitPos = 0;
+		_bytePos = 0;
+	}
+	/**
+	 * 比特流数组截取
+	 * @param  {number} begin 开始索引
+	 * @param  {number} end   结束索引
+	 * @return {arrary}       比特流数组
+	 */
+	_proto_.slice = function(begin, end){
+		retrun _uint8Array.slice(begin, end);
+	}
+	/**
+	 * 追加数据
+	 * @param  {object} byteArr 二进制数组
+	 */
+	_proto_.append = function(byteArr){
+		var tmp = new Uint8Array(this.getSize());
+		if(_bytePos>0){
+			tmp.set(_uint8Array.slice(_bytePos));
+			tmp.set(this.getSize() - _bytePos, byteArr);
+		}else{
+			tmp.set(0, byteArr);
+		}
+		this.end = _bytePos + byteArr.length; //有效数据尾
+		_uint8Array = tmp;
 		_bytePos = 0;
 	}
 	return BitStream;

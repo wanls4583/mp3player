@@ -15,7 +15,7 @@ define(function(require, exports, module) {
     /**
      * Middle/Side stereo立体声处理
      * @param  number gr   颗粒索引
-     * @param  arrary xrch  逆量化后的value数组
+     * @param  arrary xrch  逆量化后的value数组(左边声道，右声道)
      */
     _proto_.ms_stereo = function(gr, xrch){
     	var xr0 = xrch[0], xr1 = xrch[1];

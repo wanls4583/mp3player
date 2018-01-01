@@ -14,23 +14,31 @@ define(function(require, exports, module) {
     var sfbIndexShort = []; //短块比例因子带
 
     function Huffman(_bitStream, _header, _sideInfo){
-        bitStream = _bitStream;
-        header = _header;
-        sideInfo = _sideInfo;
-    	sideInfo.region1Start = [[],[]];
-    	sideInfo.region2Start = [[],[]];
-        sideInfo.rzeroIndex = [[],[]];
-    	if(!header){
-    		throw new Error('帧头解析失败');
-    	}
-    	if(!sideInfo){
-    		throw new Error('比例因子解析失败');
-    	}
-    	this.initSfbIndex();
+        this.init(_bitStream, _header, _sideInfo)
+        this.initSfbIndex();
     }
 
     var _proto_ = Huffman.prototype;
-
+     /**
+     * 初始化
+     * @param  {object} _bitStream 比特流对象
+     * @param  {object} _header    帧头对象
+     * @param  {object} _sideInfo    帧边对象
+     */
+    _proto_.init = function(_bitStream, _header, _sideInfo){
+        bitStream = _bitStream;
+        header = _header;
+        sideInfo = _sideInfo;
+        sideInfo.region1Start = [[],[]];
+        sideInfo.region2Start = [[],[]];
+        sideInfo.rzeroIndex = [[],[]];
+        if(!header){
+            throw new Error('帧头解析失败');
+        }
+        if(!sideInfo){
+            throw new Error('比例因子解析失败');
+        }
+    }
     /**
      * 初始化比例因子带
      */

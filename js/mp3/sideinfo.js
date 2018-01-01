@@ -13,6 +13,17 @@ define(function(require, exports, module) {
     var channels = 0; //声道数
 
     function SideInfo(_bitStream, _header) {
+        this.init(_bitStream, _header);
+    }
+
+    var _proto_ = SideInfo.prototype;
+
+    /**
+     * 初始化
+     * @param  {object} _bitStream 比特流对象
+     * @param  {object} _header    帧头对象
+     */
+    _proto_.init = function(_bitStream, _header){
         bitStream = _bitStream;
         header = _header;
         /*帧变信息-BEGIN*/
@@ -35,19 +46,15 @@ define(function(require, exports, module) {
         this.count1table_select = [[],[]]; //count1table_select[gr][ch]，count1区域哈弗曼编码表选择信息
         /*帧变信息-END*/
     }
-
-    var _proto_ = SideInfo.prototype;
-
+    /**
+     * 解析帧边信息
+     * @return object 比特流
+     */
     _proto_.parseSideInfo = function() {
-        bitStream.reset(); //指针指向头部
         var mask = 0;
         var channelMode = header.channelMode;
-        var offset = 0;
         channels = 0;
-        bitStream.skipBits(24 - 11);
-        channelMode = bitStream.getBits(2);
-        bitStream.skipBits(32 - 26);
-        offset = bitStream.getBytePos();
+        this._init(); //初始化
         this.main_data_begin = bitStream.getBits(9);
         if (channelMode == 3){
             channels = 1;

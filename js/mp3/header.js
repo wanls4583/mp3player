@@ -38,23 +38,29 @@ define(function(require, exports, module) {
     var MAX_TAG_OFF = 10 * 1024; //查找帧头，最多查找10K
 
     var bitStream = null;
+    var hasParseVbr = false;
 
     function Header(arrayBuffer){
-        bitStream = new BitStream(arrayBuffer);
+        this.init(arrayBuffer);
     }
 
     var _proto_ = Header.prototype;
 
     /**
-     * 解析帧头信息
-     * @param boolean ifParseVbr 是否解析vbr信息 
-     * @return boolean 解析是否成功
+     * 初始化
+     * @param  {object} arrayBuffer 二进制数组
      */
-    _proto_.parseHeader = function(ifParseVbr){
-        bitStream.reset(); //指针指向头部
+    _proto_.init = function(_bitStream){
+        bitStream = _bitStream;
+    }
+    /**
+     * 解析帧头信息
+     * @return object 比特流
+     */
+    _proto_.parseHeader = function(){
         var mask = 0;
         do{
-            mask = bitStream.getBits(11); //获取是11位同步头
+            mask = bitStream.getBits(11); //获取11位同步头
             if(mask != HEADER_MASK){
                 if(bitStream.isEnd()){
                     break;
@@ -93,7 +99,7 @@ define(function(require, exports, module) {
             this.duration = 1152/sampleRateMap[this.sampleRateIndex]; //本帧时长
 
             //计算主数据长度
-            this.mainDataSize = this.frameSize - 4 - this.sideInfoSize; //主数据长度
+            this.mainDataSize = (this.frameSize - 4 - this.sideInfoSize)>>0; //主数据长度
             if(this.protectionBit == 0)
                 this.mainDataSize -= 2;  //CRC
             break;
@@ -104,7 +110,8 @@ define(function(require, exports, module) {
             return false;
         }
 
-        if(ifParseVbr){
+        if(!hasParseVbr){
+            hasParseVbr = true;
             this.parseVbr();
             if(this.toc){
                 this.totalDuration = this.totalFrames*1152/sampleRateMap[this.sampleRateIndex]; //总时长

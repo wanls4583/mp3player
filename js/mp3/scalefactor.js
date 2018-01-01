@@ -12,6 +12,12 @@ define(function(require, exports, module) {
     var slen1 = [ 0, 1, 2, 3, 0, 1, 2, 3, 1, 2, 3, 1, 2, 3, 2, 3 ];
 
     function ScaleFactor(_bitstream, _sideInfo){
+        this.init(_bitstream, _sideInfo);
+    }
+
+    var _proto_ = ScaleFactor.prototype;
+
+    _proto_.init = function(_bitstream, _sideInfo){
         sideInfo = _sideInfo;
         offset = sideInfo.parseSideInfo();
         sideInfo.part2_length = [[],[]];
@@ -19,8 +25,6 @@ define(function(require, exports, module) {
         sideInfo.scfL = [[],[]]; // [2][23];
         sideInfo.scfS = [[[],[]],[[],[]]]; // [2][3][13];
     }
-
-    var _proto_ = ScaleFactor.prototype;
 
     _proto_.parseScaleFactors = function(gr, ch){
         if(!offset){
