@@ -13,6 +13,7 @@ define(function(require, exports, module){
 	var Stereo = require('./stereo');
 	var Antialias = require('./antialias');
 	var Imdct = require('./imdct');
+	var Synthesis = require('./synthesis');
 
 	var channels = 0;
 	var preBlckCh0 = [];
@@ -35,7 +36,7 @@ define(function(require, exports, module){
 		this.stereo = new Stereo(this.sideInfo);
 		this.antialias = new Antialias(this.sideInfo);
 		this.imdct = new Imdct(this.sideInfo);
-		for(var i=0; i<18; i++){
+		for(var i=0; i<32 * 18; i++){
 			preBlckCh0[i] = 0;
 			preBlckCh1[i] = 0;
 		}
@@ -46,6 +47,7 @@ define(function(require, exports, module){
 		var xrch = null; //存储处理结果
 		var self = this;
 		var begin = new Date().getTime();
+		var pcmbuff = [];
 		function _decode(resolve){
 			if(!self.header.parseHeader()){
 				console.log('decode cost:', new Date().getTime() - begin, 'ms');
@@ -65,6 +67,9 @@ define(function(require, exports, module){
 	            huffv = [[[],[]],[[],[]]]; //huffv[2][2]
 	            xrch = [[[],[]],[[],[]]]; //xrch[2][2]
 	        }
+	        if(!self.synthesis){
+	        	self.synthesis = new Synthesis(channels);
+	        }
 			for(var gr=0; gr<2; gr++){ //2个颗粒
 				for(var ch=0; ch<channels; ch++){
 					self.scalleFactor.parseScaleFactors(gr, ch); //解码比例因子
@@ -76,16 +81,20 @@ define(function(require, exports, module){
 				}
 				self.antialias.doAntialias(gr, 0, xrch[gr][0]); //消混叠处理
 				
-				self.imdct.hybrid(gr, 0, xrch[gr][0], preBlckCh0);//子带混合处理
+				self.imdct.hybrid(gr, 0, xrch[gr][0], preBlckCh0); //子带混合处理
 
 				if (channels == 2) {
 					self.antialias.doAntialias(gr, 1, xrch[gr][1]);
 					self.imdct.hybrid(gr, 1, xrch[gr][1], preBlckCh1);
 				}
 			}
+			self.synthesis.doSynthesis(xrch, 0, pcmbuff); //多相合成滤波
+			if (channels == 2){
+				self.synthesis.doSynthesis(xrch, 1, pcmbuff);
+			}
 			setTimeout(function(){
 				_decode(resolve);
-			},10);
+			},0);
 		}
 		return new Promise(_decode);
 	}
