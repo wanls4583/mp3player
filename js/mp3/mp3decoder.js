@@ -51,8 +51,9 @@ define(function(require, exports, module){
 				return;
 			}
 			self.sideInfo.parseSideInfo();
-			self.bitStream.skipBytes(self.bitStream.end - self.sideInfo.main_data_begin); //跳过垃圾数据
+			self.mainDataBitstream.skipBytes(self.mainDataBitstream.end - self.sideInfo.main_data_begin); //跳过垃圾数据
 			self.mainDataBitstream.append(self.mainDataBitstream.slice(self.mainDataBitstream.getBytePos(),self.mainDataBitstream.getBytePos()+self.header.mainDataSize));
+			self.bitStream.skipBytes(self.header.mainDataSize);
 			if (self.header.channelMode == 3){
 	            channels = 1;
 	            huffv = [[],[]]; //huffv[2][1]
@@ -76,8 +77,8 @@ define(function(require, exports, module){
 				self.imdct.hybrid(gr, 0, xrch[gr][0], preBlckCh0);//子带混合处理
 
 				if (channels == 2) {
-					self.antialias.doAntialias(gr, 1, xrch[gr][0]);
-					self.imdct.hybrid(gr, 1, xrch[gr][0], preBlckCh1);
+					self.antialias.doAntialias(gr, 1, xrch[gr][1]);
+					self.imdct.hybrid(gr, 1, xrch[gr][1], preBlckCh1);
 				}
 			}
 			setTimeout(function(){

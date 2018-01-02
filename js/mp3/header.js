@@ -110,6 +110,7 @@ define(function(require, exports, module) {
             return false;
         }
 
+        this.endBytePos = this.bitStream.getBytePos(); 
         if(!hasParseVbr){
             hasParseVbr = true;
             this.parseVbr();
@@ -125,7 +126,6 @@ define(function(require, exports, module) {
     _proto_.parseVbr = function(){
         var flags = 0;
         var tag = '';
-        this.bitStream.reset(); //指针指向头部
 
         do{
             tag = String.fromCharCode(this.bitStream.getByte(), this.bitStream.getByte(), this.bitStream.getByte(), this.bitStream.getByte());
@@ -144,6 +144,7 @@ define(function(require, exports, module) {
                         this.toc[i] = this.bitStream.getByte();
                     }
                 }
+                this.bitStream.setBytePos(this.endBytePos);
                 return this.bitStream;
             }else if(tag == 'VBRI'){ //VBRI头
                 this.bitStream.skipBytes(6);
@@ -155,6 +156,7 @@ define(function(require, exports, module) {
                 for(var i=0; i<tocSize; i++){
                     this.toc[i] = this.bitStream.getByte();
                 }
+                this.bitStream.setBytePos(this.endBytePos);
                 return this.bitStream;
             }else{
                 if(this.bitStream.isEnd()){
@@ -163,6 +165,8 @@ define(function(require, exports, module) {
                 this.bitStream.rewindBytes(3);
             }
         }while(tag!='Xing' && tag != 'Info' && tag != 'VBRI' && this.bitStream.getBytePos() < MAX_TAG_OFF)
+
+        this.bitStream.setBytePos(this.endBytePos);
 
         return false;
     }

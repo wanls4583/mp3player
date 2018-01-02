@@ -318,7 +318,7 @@ define(function(require, exports, module) {
 	}
 	
 	_proto_.hybrid = function(gr, ch, xrch, preb) {
-		var maxi = this.sideInfo.rzeroIndex[ch];
+		var maxi = this.sideInfo.rzeroIndex[gr][ch];
 		var i, block_type;
 		
 		for (i = 0; i < maxi; i += 18) {
@@ -327,9 +327,9 @@ define(function(require, exports, module) {
 					: this.sideInfo.block_type[gr][ch];
 
 			if(block_type == 2)
-				imdct12(xrch, preb, i);
+				this.imdct12(xrch, preb, i);
 			else
-				imdct36(xrch, preb, i, block_type);
+				this.imdct36(xrch, preb, i, block_type);
 		}
 
 		// 0值区
