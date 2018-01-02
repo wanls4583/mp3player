@@ -106,7 +106,7 @@ define(function(require, exports, module) {
 
         }while(this.bitStream.getBytePos() - beginPos < MAX_TAG_OFF);
 
-        if(this.bitStream.getBytePos() - beginPos >= MAX_TAG_OFF){
+        if(this.bitStream.getBytePos() - beginPos >= MAX_TAG_OFF || this.bitStream.isEnd()){
             return false;
         }
 

@@ -45,8 +45,10 @@ define(function(require, exports, module){
 		var huffv = null; //哈夫曼解码结果
 		var xrch = null; //存储处理结果
 		var self = this;
+		var begin = new Date().getTime();
 		function _decode(resolve){
 			if(!self.header.parseHeader()){
+				console.log('decode cost:', new Date().getTime() - begin, 'ms');
 				resolve();
 				return;
 			}
