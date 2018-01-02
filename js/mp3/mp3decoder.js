@@ -47,7 +47,18 @@ define(function(require, exports, module){
 		var xrch = null; //存储处理结果
 		var self = this;
 		var begin = new Date().getTime();
-		var pcmbuff = [];
+		var pcmbuff0 = [];
+		var pcmbuff1 = [];
+		setTimeout(function(){
+			var audioContext = new(AudioContext || WebkitAudioContext)();
+			var myArrayBuffer = audioContext.createBuffer(2, pcmbuff0.length + self.header.sampleRate, self.header.sampleRate);
+            myArrayBuffer.copyToChannel(new Float32Array(pcmbuff0), 0, 0);
+            myArrayBuffer.copyToChannel(new Float32Array(pcmbuff1), 1, 0);
+            var bufferSourceNode = audioContext.createBufferSource();
+            bufferSourceNode.buffer = myArrayBuffer;
+            bufferSourceNode.connect(audioContext.destination);
+            bufferSourceNode.start(0);
+		},5000);
 		function _decode(resolve){
 			if(!self.header.parseHeader()){
 				console.log('decode cost:', new Date().getTime() - begin, 'ms');
@@ -88,9 +99,9 @@ define(function(require, exports, module){
 					self.imdct.hybrid(gr, 1, xrch[gr][1], preBlckCh1);
 				}
 			}
-			self.synthesis.doSynthesis(xrch, 0, pcmbuff); //多相合成滤波
+			self.synthesis.doSynthesis(xrch, 0, pcmbuff0); //多相合成滤波
 			if (channels == 2){
-				self.synthesis.doSynthesis(xrch, 1, pcmbuff);
+				self.synthesis.doSynthesis(xrch, 1, pcmbuff1);
 			}
 			setTimeout(function(){
 				_decode(resolve);
