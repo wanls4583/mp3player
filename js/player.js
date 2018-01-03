@@ -468,6 +468,11 @@ define(function(require, exports, module) {
                 if (index >= indexSize) {
                     index = indexSize - 1;
                 }
+                if(this.waiting){
+                    this.waiting = false;
+                    waitingCb();
+                }
+                this.waiting = false;
                 if (this.totalBuffer) {
                     var begin = this.totalBuffer.length * index / indexSize;
                     if (begin > this.totalBuffer.dataBegin && begin + 5 * this.sampleRate < this.totalBuffer.dataEnd) {
