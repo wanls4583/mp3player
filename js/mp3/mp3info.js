@@ -18,6 +18,7 @@ define(function(require, exports, module) {
     'use strict';
 
     var requestRange = require('../common/range');
+    var bitStream = require('../common/bitstream');
     var Util = require('../common/util');
     var Mp3Header = require('./header');
     var Mp3Id3Tag = require('./id3tag');
@@ -40,7 +41,7 @@ define(function(require, exports, module) {
             }).then(function(){
             	return self._loadFirstFrame();
             }).then(function(arrayBuffer){
-            	var header = new Mp3Header(arrayBuffer);
+            	var header = new Mp3Header(new bitStream(arrayBuffer));
                 var result = header.parseHeader(true);
                 if(result){
                     self.audioInfo.toc = header.toc;

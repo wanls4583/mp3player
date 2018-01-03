@@ -257,27 +257,6 @@ define(function(require, exports, module) {
     	}
     	return this.tagSize;
     }
-    _proto_.getTagSize = function(){
-    	return this.tagSize;
-    }
-    _proto_.getTitle = function(){
-    	return this.title;
-    }
-    _proto_.getArtist = function(){
-    	return this.artist;
-    }
-    _proto_.getAlbum = function(){
-    	return this.album;
-    }
-    _proto_.getYear = function(){
-    	return this.year;
-    }
-    _proto_.getComment = function(){
-    	return this.comment;
-    }
-    _proto_.getGenre = function(){
-    	return this.genre;
-    }
 
     return Id3Tag;
 })
