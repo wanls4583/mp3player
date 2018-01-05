@@ -21,6 +21,7 @@ define(function(require, exports, module) {
         var waitingCb = emptyCb; //等待回调
         var playingCb = emptyCb; //等待结束回调
         var endCb = emptyCb; //播放结束回调
+        var errorCb = errorCb; //错误回调
         var maxDecodeSize = 8 * 1024 * 1024; // 最大解码字节长度(默认8M)
         var isIos = navigator.userAgent.indexOf('iPhone') > -1;
         var AudioInfo = null;
@@ -37,7 +38,13 @@ define(function(require, exports, module) {
                 this.bufferLength = 0; //音频全部解码后总大小
                 this.audioContext = new(window.AudioContext || window.webkitAudioContext)(); //音频上下文对象
                 this.audioContext.onstatechange = function() {
-                    Util.log(self.audioContext.state);
+                    if(self.audioContext){
+                        if(self.audioContext.state!='running'){
+                            self.isPlaying = false;
+                        }
+                        Util.log(self.audioContext.state);
+                    }
+                    
                 }
                 this.fileBlocks = new Array(100); //音频数据分区
                 this.cacheFrameSize = 0; //每次加载的分区数
@@ -51,7 +58,9 @@ define(function(require, exports, module) {
                 }else{
                     this.cacheFrameSize = Math.ceil(1024 * 1024 / (audioInfo.fileSize/indexSize));
                 }
-                this._decodeAudioData(0, this.cacheFrameSize, true, this.totalBuffer);
+                if(this.audioInfo){
+                    this._decodeAudioData(0, this.cacheFrameSize, true, this.totalBuffer);
+                }
             },
             //计时器
             timeoutIds: {
@@ -75,7 +84,7 @@ define(function(require, exports, module) {
                     if (Util.ifDebug()) {
                         var decodeBeginTime = new Date().getTime();
                     }
-                    self.decodingPromise = self.audioContext.decodeAudioData(result.arrayBuffer).then(function(buffer) { //使用旧版回调，调试时将有可能被阻塞而不执行回调
+                    self.audioContext.decodeAudioData(result.arrayBuffer,function(buffer) { //使用旧版回调，调试时将有可能被阻塞而不执行回调
                         if (beginDecodeTime != self.beginDecodeTime) { //防止seek时，之前未完成的异步解码对新队列的影响
                             return;
                         }
@@ -130,10 +139,8 @@ define(function(require, exports, module) {
                                 }
                             }, nextDecodeTime);
                         }
-                        self.decodingPromise = null;
-                    }).catch(function(e) {
+                    },function(){
                         Util.log(index, "解码失败", e);
-                        self.decodingPromise = null;
                     });
 
                     function _nextDecode(result, totalBuffer, minSize, audioInfo) {
@@ -156,11 +163,9 @@ define(function(require, exports, module) {
                     delLength = sampleSize * 6;
                 }
                 for (var i = 0; i < _buffer.numberOfChannels; i++) {
-                    var data = _buffer.getChannelData(i);
-                    this.totalBuffer.copyToChannel(_buffer.getChannelData(i).slice(delLength), i, offset);
+                    this.totalBuffer.getChannelData(i).set(_buffer.getChannelData(i).slice(delLength), offset);
                 }
                 this.totalBuffer.dataEnd = offset + _buffer.length - delLength;
-
             },
             //播放
             _play: function(startTime) {
@@ -187,6 +192,7 @@ define(function(require, exports, module) {
                 this.hasPlayed = true;
                 this.nowSouceNode = sourceNode;
                 this._startUpdateTimeoutId();
+                this.isPlaying = true;
             },
             //开始更新计时器
             _startUpdateTimeoutId: function() {
@@ -470,9 +476,8 @@ define(function(require, exports, module) {
                 }
                 if(this.waiting){
                     this.waiting = false;
-                    waitingCb();
+                    playingCb();
                 }
-                this.waiting = false;
                 if (this.totalBuffer) {
                     var begin = this.totalBuffer.length * index / indexSize;
                     if (begin > this.totalBuffer.dataBegin && begin + 5 * this.sampleRate < this.totalBuffer.dataEnd) {
@@ -541,11 +546,21 @@ define(function(require, exports, module) {
                 if (typeof opt.loadedmetaCb == 'function') {
                     loadedmetaCb = opt.loadedmetaCb;
                 }
+                if (typeof opt.loadedmetaCb == 'function') {
+                    errorCb = opt.errorCb;
+                }
             }else{
                 return {};
             }
             this.play = function() {
-                if(!Player.audioInfo){
+                if(Player.error){
+                    errorCb();
+                    return;
+                }else if(!this.clickPlayTime){
+                    Player.waiting = false;
+                    this.clickPlayTime = new Date().getTime();
+                }else if(this.audioInfo === false || new Date().getTime() - this.clickPlayTime > 5000 && !this.audioInfo){
+                    this.clickPlayTime = 0;
                     return;
                 }
                 var self = this;
@@ -553,15 +568,24 @@ define(function(require, exports, module) {
                 var audioContext = Player.audioContext;
                 var audioInfo = Player.audioInfo;
                 clearTimeout(Player.timeoutIds.playTimoutId);
-                if (isIos) {
+                if (isIos && !this.hasClick) {
                     audio.play();
+                    this.hasClick = true;
                 }
                 if (!Player.hasPlayed) {
                     if (!Player.totalBuffer || typeof Player.totalBuffer.dataBegin == undefined) {
+                        if(!Player.waiting){
+                            Player.waiting = true;
+                            waitingCb();
+                        }
                         Player.timeoutIds.playTimoutId = setTimeout(function() {
                             self.play();
                         }, 500);
                         return;
+                    }
+                    if(Player.waiting){
+                        Player.waiting = false;
+                        playingCb();
                     }
                     Player._play(Player.totalBuffer.dataBegin / Player.totalBuffer.length * audioInfo.totalTime);
                     playCb();
@@ -580,31 +604,46 @@ define(function(require, exports, module) {
                 }
             }
             this.pause = function() {
-                if(!Player.audioInfo){
-                    return;
-                }
+                pauseCb();
                 Player.resumeTime = -1;
                 Player.pause = true;
-                Player.audioContext.suspend();
+                Player.waiting = false;
+                if(Player.audioContext){
+                    Player.audioContext.suspend();
+                }
                 clearTimeout(Player.timeoutIds.playTimoutId);
-                pauseCb();
             }
             this.seek = function(percent) {
                 percent = percent>>0;
                 if(!Player.audioInfo){
-                    return;
+                    return false;
                 }
                 Player._seek(percent);
+                return true;
             }
             this.destory = function(){
-                Player.audioContext.close();
+                Player._clearTimeout();
+                if(Player.audioContext){
+                    Player.audioContext.close();
+                    Player.audioContext = null;
+                }
+            }
+            this.isPlaying = function(){
+                return Player.isPlaying;
             }
             AudioInfo.init(url,{
                 decrypt: decrypt,
                 loadedmetaCb: loadedmetaCb
             }).then(function(audioInfo){
                 Player._init(audioInfo);
-            });
+                if(!audioInfo){
+                    errorCb();
+                    Player.error = 'parse audioInfo failed';
+                }
+            }).catch(function(){
+                Player.error = 'load audioInfo failed';
+                errorCb();
+            })
         }
         return new _Player(_url, opt);
     }
