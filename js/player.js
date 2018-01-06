@@ -47,19 +47,19 @@ define(function(require, exports, module) {
                     
                 }
                 this.fileBlocks = new Array(100); //音频数据分区
-                this.cacheFrameSize = 0; //每次加载的分区数
+                this.firstLoadSize = 0; //首次加载的分区数
                 this.indexSize = 100; //索引个数
                 this.seeking = false; //是否正在索引
                 this.nowSouceNode = null; //正在播放的资源节点
                 this.loadingPromise = null; //数据加载异步对象集合
-                if(audioInfo.fileSize/indexSize > 1024 * 1024){ //1/100总数据大小是否大于1M
-                    this.cacheFrameSize = 1;
+                if(audioInfo.fileSize/indexSize > 1024 * 1024 / 2){ //1/100总数据大小是否大于1/2M
+                    this.firstLoadSize = 1;
                 }else{
-                    this.cacheFrameSize = Math.ceil(1024 * 1024 / (audioInfo.fileSize/indexSize));
+                    this.firstLoadSize = Math.ceil(1024 * 1024 / 2 / (audioInfo.fileSize/indexSize));
                 }
                 if(this.audioInfo){
                     this.beginDecodeTime = new Date().getTime();
-                    this._decodeAudioData(0, this.cacheFrameSize, true, this.beginDecodeTime);
+                    this._decodeAudioData(0, this.firstLoadSize, true, this.beginDecodeTime);
                 }
             },
             //计时器
@@ -155,9 +155,9 @@ define(function(require, exports, module) {
                 var t = sourceNode.buffer.duration/2;
 
                 self.beginDecodeTime = setTimeout(function(){
-                    var size = self.cacheFrameSize*4;
+                    var size = self.firstLoadSize*4;
                     if(size/indexSize*self.audioInfo.fileSize > maxDecodeSize){
-                        size = (maxDecodeSize/(self.audioInfo.fileSize/indexSize*self.cacheFrameSize))>>0;
+                        size = (maxDecodeSize/(self.audioInfo.fileSize/indexSize*self.firstLoadSize))>>0;
                     }
                     self._decodeAudioData(self.endIndex + 1, size, null, self.beginDecodeTime);
                 }, t*1000);
@@ -189,7 +189,7 @@ define(function(require, exports, module) {
                 this.finished = true; //播放结束标识
                 this._clearTimeout();
                 this.audioContext.suspend();
-                this._decodeAudioData(0, this.cacheFrameSize, true, this.beginDecodeTime); //为下次播放做准备
+                this._decodeAudioData(0, this.firstLoadSize, true, this.beginDecodeTime); //为下次播放做准备
                 endCb();
             },
             //获取数据帧
@@ -222,7 +222,7 @@ define(function(require, exports, module) {
                     var length = 0;
                     result = this._joinNextCachedFileBlock(index, minSize, negative);
                     if (result.endIndex < indexSize - 1) {
-                        this._loadFrame(result.endIndex + 1, this.cacheFrameSize);
+                        this._loadFrame(result.endIndex + 1, this.firstLoadSize*4);
                     }
                     return Promise.resolve(result);
                 }
@@ -456,11 +456,11 @@ define(function(require, exports, module) {
                 }
                 if (this.loadingPromise) { //是否有数据正在加载
                     this.loadingPromise.then(function() {
-                        self._decodeAudioData(index, self.cacheFrameSize, true, self.beginDecodeTime);
+                        self._decodeAudioData(index, self.firstLoadSize, true, self.beginDecodeTime);
                     });
                     this.request.abort(); //强制中断下载
                 } else {
-                    this._decodeAudioData(index, this.cacheFrameSize, true, this.beginDecodeTime);
+                    this._decodeAudioData(index, this.firstLoadSize, true, this.beginDecodeTime);
                 }
             },
             //清除所有计时器
