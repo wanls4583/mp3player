@@ -64,7 +64,7 @@ define(function(require, exports, module) {
                 if (match && match.length >= frameSize) { //找出多少帧
                     return bufferStr.length / 3 - bufferStr.indexOf(frameSync) / 3;
                 }
-                if (i == 0) {
+                if (i <= 0) {
                     return 0;
                 }
                 count -= 200;
