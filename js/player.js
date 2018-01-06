@@ -130,38 +130,16 @@ define(function(require, exports, module) {
                 sourceNode.buffer = this.nextBuffer;
                 this.nowBuffer = this.nextBuffer;
                 this.nextBuffer = null;
-                sourceNode.scriptProcessor = scriptProcessor;
-                sourceNode.connect(scriptProcessor);
-                scriptProcessor.connect(this.audioContext.destination);
-                scriptProcessor.onaudioprocess = function(e){
-                    var inputBuffer = e.inputBuffer;
-                    var outputBuffer = e.outputBuffer;
-                    for (var channel = 0; channel < outputBuffer.numberOfChannels; channel++) {
-                        var inputData = inputBuffer.getChannelData(channel);
-                        var outputData = outputBuffer.getChannelData(channel);
-                        outputData.set(inputData, 0);
-                    }
-                    count+=inputBuffer.length;
-                    if(count + inputBuffer.length >= sourceNode.buffer.length && !scriptProcessor.stop){
-                        if(self.nextBuffer){
-                            self._play(0);
-                        }else if(!self.waiting && index < indexSize - 1){
-                            self.waiting = true;
-                            self.audioContext.suspend();
-                            waitingCb();
-                        }
-                        scriptProcessor.stop = true;
-                    }
-                }
+                sourceNode.connect(this.audioContext.destination);
                 sourceNode.onended = function() {
                     scriptProcessor.disconnect();
                     sourceNode.disconnect();
                     if(index >= indexSize-1){
                         self._end();
-                    }else if(!scriptProcessor.stop){
+                    }else{
                         if(self.nextBuffer){
                             self._play(0);
-                        }else if(!self.waiting && index < indexSize-1){
+                        }else if(!self.waiting){
                             self.waiting = true;
                             self.audioContext.suspend();
                             waitingCb();
@@ -211,6 +189,7 @@ define(function(require, exports, module) {
                 this.finished = true; //播放结束标识
                 this._clearTimeout();
                 this.audioContext.suspend();
+                this._decodeAudioData(0, this.cacheFrameSize, true, this.beginDecodeTime); //为下次播放做准备
                 endCb();
             },
             //获取数据帧
@@ -473,7 +452,6 @@ define(function(require, exports, module) {
                 this.finished = false;
                 this.beginDecodeTime = new Date().getTime();
                 if (this.nowSouceNode) {
-                    this.nowSouceNode.scriptProcessor.disconnect();
                     this.nowSouceNode.disconnect();
                 }
                 if (this.loadingPromise) { //是否有数据正在加载
