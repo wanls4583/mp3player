@@ -129,6 +129,8 @@ define(function(require, exports, module) {
                 this.currentTime = Math.round(this.offsetTime);
                 if (this.audioContext.state == 'suspended' && !this.pause) {
                     this.audioContext.resume();
+                }else if(this.pause){
+                    this.audioContext.suspend();
                 }
                 var sourceNode = this.audioContext.createBufferSource();
                 var index = this.endIndex;
