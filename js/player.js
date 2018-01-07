@@ -123,6 +123,9 @@ define(function(require, exports, module) {
             //播放
             _play: function(startTime) {
                 var self = this;
+                if(startTime<0){
+                    startTime = 0;
+                }
                 this.currentTime = Math.round(this.offsetTime);
                 if (this.audioContext.state == 'suspended' && !this.pause) {
                     this.audioContext.resume();
@@ -146,7 +149,7 @@ define(function(require, exports, module) {
                             if (Util.ifDebug()) {
                                 Util.log('next');
                             }
-                            self._play((endFrameSize-2)*frameDuration);
+                            self._play(self.fileBlocks[self.beginIndex-1].delLength*2/self.nowBuffer.sampleRate-frameDuration);
                         }else if(!self.waiting){
                             self.waiting = true;
                             self.audioContext.suspend();
@@ -168,7 +171,7 @@ define(function(require, exports, module) {
                     }
                     self.beginDecodeTime = new Date().getTime();
                     self._decodeAudioData(self.endIndex + 1, size, null, self.beginDecodeTime);
-                }, sourceNode.buffer.duration/2*1000);
+                }, sourceNode.buffer.duration/3*1000);
                 
                 this.hasPlayed = true; //已经开始播放
                 this.nowSouceNode = sourceNode;
@@ -449,8 +452,11 @@ define(function(require, exports, module) {
                 }
                 if (!excludeEnd) { //从尾部开始
                     var endExtraLength = Util.getLengthByFrameSync(result, this.audioInfo.frameSync, null, true, endFrameSize);
+                    this.fileBlocks[endIndex].delLength = 0;
                     if (endExtraLength) { //存储endFrameSize个帧给接下来的帧使用
                         this.fileBlocks[endIndex].rightDeledData = result.slice(result.byteLength - endExtraLength);
+                        endExtraLength = Util.getLengthByFrameSync(this.fileBlocks[endIndex].rightDeledData, this.audioInfo.frameSync, null, true);
+                        this.fileBlocks[endIndex].delLength = this.fileBlocks[endIndex].rightDeledData.byteLength - endExtraLength;
                     }
                     endExtraLength = Util.getLengthByFrameSync(result, this.audioInfo.frameSync, null, true);
                     if (endExtraLength) { //删除尾部不完整的一帧数据
