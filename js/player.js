@@ -93,7 +93,7 @@ define(function(require, exports, module) {
                             return;
                         }
                         if (Util.ifDebug()) {
-                            Util.log('解码花费:', new Date().getTime() - decodeBeginTime, 'ms');
+                            Util.log('解码花费:', new Date().getTime() - decodeBeginTime, 'ms', 'duration', buffer.duration);
                         }
                         self.endIndex = result.endIndex;
                         self.beginIndex = result.beginIndex;
