@@ -22,7 +22,9 @@ define(function(require, exports, module) {
         var playingCb = emptyCb; //等待结束回调
         var endCb = emptyCb; //播放结束回调
         var errorCb = emptyCb; //错误回调
-        var maxDecodeSize = 5 * 1024 * 1024; // 最大解码字节长度(默认8M)
+        var maxDecodeSize = 5 * 1024 * 1024; // 最大解码字节长度(默认5M)
+        var endFrameSize = 8; //尾部保留帧数（MP3音频解码时前后帧有关联）
+        var frameDuration = 0; //一帧的时长
         var isIos = navigator.userAgent.indexOf('iPhone') > -1;
         var AudioInfo = null;
         var audio = null;
@@ -53,6 +55,7 @@ define(function(require, exports, module) {
                 this.pause = true; //是否暂停
                 this.nowSouceNode = null; //正在播放的资源节点
                 this.loadingPromise = null; //数据加载异步对象集合
+                frameDuration = 1152/audioInfo.sampleRate;
                 if(audioInfo.fileSize/indexSize > 1024 * 1024 / 2){ //1/100总数据大小是否大于1/2M
                     this.firstLoadSize = 1;
                 }else{
@@ -90,16 +93,16 @@ define(function(require, exports, module) {
                             return;
                         }
                         if (Util.ifDebug()) {
-                            Util.log('解码花费:', new Date().getTime() - decodeBeginTime);
+                            Util.log('解码花费:', new Date().getTime() - decodeBeginTime, 'ms');
                         }
                         self.endIndex = result.endIndex;
                         self.beginIndex = result.beginIndex;
-                        var del = (1152*buffer.sampleRate/self.audioInfo.sampleRate)>>0; //去掉前两帧
-                        var tmp = self.audioContext.createBuffer(buffer.numberOfChannels, buffer.length - del*2, buffer.sampleRate);
-                        for(var i=0; i<buffer.numberOfChannels; i++){
-                            tmp.getChannelData(i).set(buffer.getChannelData(i).slice(del*2), 0);
-                        }
-                        self.nextBuffer = tmp;
+                        // var del = (1152*buffer.sampleRate/self.audioInfo.sampleRate)>>0; //去掉前两帧
+                        // var tmp = self.audioContext.createBuffer(buffer.numberOfChannels, buffer.length - del*2, buffer.sampleRate);
+                        // for(var i=0; i<buffer.numberOfChannels; i++){
+                        //     tmp.getChannelData(i).set(buffer.getChannelData(i).slice(del*2), 0);
+                        // }
+                        self.nextBuffer = buffer;
                         if(self.seeking || self.waiting){ //从seek或等待状态切换到播放
                             if(self.waiting){
                                 self.waiting = false;
@@ -140,7 +143,10 @@ define(function(require, exports, module) {
                         endCb(); //结束回调
                     }else{
                         if(self.nextBuffer){
-                            self._play(0);
+                            if (Util.ifDebug()) {
+                                Util.log('next');
+                            }
+                            self._play((endFrameSize-2)*frameDuration);
                         }else if(!self.waiting){
                             self.waiting = true;
                             self.audioContext.suspend();
@@ -377,7 +383,7 @@ define(function(require, exports, module) {
                     }
                 }
                 //删除尾部损坏数据
-                result = this._fixFileBlock(result, index, endIndex, false, false, 0, 4);
+                result = this._fixFileBlock(result, index, endIndex, false, false, 0, endFrameSize);
                 if (Util.ifTest()) {
                     var tmp = new Uint8Array(result);
                     if (tmp.length > 0) {
