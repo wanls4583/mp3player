@@ -517,6 +517,13 @@ define(function(require, exports, module) {
                 clearInterval(this._timeoutIds.updateIntervalId);
                 clearTimeout(this._timeoutIds.playTimoutId);
                 clearTimeout(this._timeoutIds.reloadTimeoutId);
+            },
+            _unlock: function(){
+                var oscillator = this.audioContext.createOscillator();
+                oscillator.frequency.value = 400;
+                oscillator.connect(context.destination);
+                oscillator.start(0);
+                oscillator.stop(.1);
             }
         }
         //对外接口
@@ -569,8 +576,9 @@ define(function(require, exports, module) {
                 var audioContext = _playerObj.audioContext;
                 var audioInfo = _playerObj.audioInfo;
                 clearTimeout(_playerObj._timeoutIds.playTimoutId);
-                if (isIos && !window.hasClick) { //ios触发声音设备
-                    audio.play();
+                if (isIos && !window.hasClick) { 
+                    audio.play(); //ios触发声音设备
+                    _playerObj._unlock(); //触发audioContext
                     window.hasClick = true;
                 }
                 if (!_playerObj.hasPlayed) { //seek后第一次播放或者音频首次加载后第一次播放
