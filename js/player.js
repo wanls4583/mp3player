@@ -43,6 +43,8 @@ define(function(require, exports, module) {
                     if(self.audioContext){
                         if(self.audioContext.state!='running'){
                             self.isPlaying = false;
+                        }else{
+                            self.isPlaying = true;
                         }
                         Util.log(self.audioContext.state);
                     }
@@ -115,6 +117,10 @@ define(function(require, exports, module) {
                         }
                     },function(e){
                         Util.log(index, "解码失败", e);
+                        if(minSize>1){
+                            minSize--;
+                        }
+                        self._decodeAudioData(index+1, minSize, negative, beginDecodeTime);
                     });
 
                     return result;
@@ -138,7 +144,9 @@ define(function(require, exports, module) {
                     if(index >= indexSize-1){
                         self.finished = true; //播放结束标识
                         self._clearTimeout();
-                        self.audioContext.suspend();
+                        if(self.audioContext.state=='running'){ //防止连续调用两次suspend
+                            self.audioContext.suspend();
+                        }
                         self._decodeAudioData(0, self.firstLoadSize, true, self.beginDecodeTime); //为下次播放做准备
                         endCb(); //结束回调
                     }else{
@@ -149,7 +157,9 @@ define(function(require, exports, module) {
                             self._play(self.fileBlocks[self.beginIndex-1].delLength*2/self.nowBuffer.sampleRate-frameDuration);
                         }else if(!self.waiting){
                             self.waiting = true;
-                            self.audioContext.suspend();
+                            if(self.audioContext.state=='running'){ //防止连续调用两次suspend
+                                self.audioContext.suspend();
+                            }
                             if(!self.pause){
                                 waitingCb();
                             }
@@ -166,7 +176,9 @@ define(function(require, exports, module) {
                 if (this.audioContext.state == 'suspended' && !this.pause) {
                     this.audioContext.resume();
                 }else if(this.pause){
-                    this.audioContext.suspend();
+                    if(this.audioContext.state=='running'){ //防止连续调用两次suspend
+                        this.audioContext.suspend();
+                    }
                 }
 
                 self._timeoutIds.decodeTimeoutId = setTimeout(function(){ //播放到一半时开始获取和解码下一段音频
@@ -187,19 +199,16 @@ define(function(require, exports, module) {
 
                 this.nowSouceNode = sourceNode;
                 this.offsetTime = this.currentTime = this.beginIndex/indexSize*this.audioInfo.totalTime; //开始计时偏移量
-
-                setTimeout(function(){ //ios状态变更有延迟
-                    if(self.audioContext.state == 'running'){ //ios需要手动触发
-                        self.isPlaying = true; //正在播放中
-                    }else if(!self.pause){
-                        self.pause = true;
-                        pauseCb();
-                        clearTimeout(self._timeoutIds.playTimoutId);
-                    }
-                },10);
-                
                 this._startUpdateTimeoutId(); //开始计时
                 this.hasPlayed = true; //已经开始播放
+
+                // setTimeout(function(){ //ios状态变更有延迟
+                //     if(self.audioContext.state != 'running' && !self.pause){ //ios需要手动触发
+                //         self.pause = true;
+                //         pauseCb();
+                //         clearTimeout(self._timeoutIds.playTimoutId);
+                //     }
+                // },10);
             },
             //跳转某个索引
             _seek: function(index) {
@@ -518,12 +527,13 @@ define(function(require, exports, module) {
                 clearTimeout(this._timeoutIds.playTimoutId);
                 clearTimeout(this._timeoutIds.reloadTimeoutId);
             },
+            //ios解锁audioContext
             _unlock: function(){
                 var oscillator = this.audioContext.createOscillator();
                 oscillator.frequency.value = 400;
-                oscillator.connect(context.destination);
+                oscillator.connect(this.audioContext.destination);
                 oscillator.start(0);
-                oscillator.stop(.1);
+                oscillator.stop(0);
             }
         }
         //对外接口
@@ -576,9 +586,15 @@ define(function(require, exports, module) {
                 var audioContext = _playerObj.audioContext;
                 var audioInfo = _playerObj.audioInfo;
                 clearTimeout(_playerObj._timeoutIds.playTimoutId);
-                if (isIos && !window.hasClick) { 
-                    audio.play(); //ios触发声音设备
-                    _playerObj._unlock(); //触发audioContext
+                if (isIos && !window.hasClick) { //ios触发声音设备
+                    audio.addEventListener('timeupdate',function(){
+                        audio.pause();
+                    });
+                    audio.play();
+                    if(!_playerObj.audioContext){
+                        _playerObj.audioContext = window.audioContext ? window.audioContext : (window.audioContext = new(window.AudioContext || window.webkitAudioContext)());
+                    }
+                    _playerObj._unlock();
                     window.hasClick = true;
                 }
                 if (!_playerObj.hasPlayed) { //seek后第一次播放或者音频首次加载后第一次播放
@@ -610,7 +626,9 @@ define(function(require, exports, module) {
                 _playerObj.pause = true;
                 _playerObj.waiting = false;
                 if(_playerObj.audioContext){
-                    _playerObj.audioContext.suspend();
+                    if(_playerObj.audioContext.state=='running'){ //防止连续调用两次suspend
+                        _playerObj.audioContext.suspend();
+                    }
                 }
                 clearTimeout(_playerObj._timeoutIds.playTimoutId);
             }
@@ -628,7 +646,9 @@ define(function(require, exports, module) {
                     _playerObj.nowSouceNode.disconnect();
                 }
                 if(_playerObj.audioContext){
-                    _playerObj.audioContext.suspend();
+                    if(_playerObj.audioContext.state=='running'){ //防止连续调用两次suspend
+                        _playerObj.audioContext.suspend();
+                    }
                     _playerObj.audioContext = null;
                 }
                 if (_playerObj.loadingPromise) { //是否有数据正在加载
