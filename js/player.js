@@ -43,8 +43,6 @@ define(function(require, exports, module) {
                     if(self.audioContext){
                         if(self.audioContext.state!='running'){
                             self.isPlaying = false;
-                        }else{
-                            self.isPlaying = true;
                         }
                         Util.log(self.audioContext.state);
                     }
@@ -201,7 +199,7 @@ define(function(require, exports, module) {
                 this.offsetTime = this.currentTime = this.beginIndex/indexSize*this.audioInfo.totalTime; //开始计时偏移量
                 this._startUpdateTimeoutId(); //开始计时
                 this.hasPlayed = true; //已经开始播放
-
+                this.isPlaying = true; //正在播放中标识
                 // setTimeout(function(){ //ios状态变更有延迟
                 //     if(self.audioContext.state != 'running' && !self.pause){ //ios需要手动触发
                 //         self.pause = true;
