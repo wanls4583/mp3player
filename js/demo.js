@@ -52,6 +52,7 @@ define(function(require, exports, module) {
             // for (var i = 0; i < arr.length; i++) {
             //     arr[i] = arr[i] ^ 255;
             // }
+            return Promise.resolve();
         }
     });
     document.getElementById("myRange").onchange = function() {
