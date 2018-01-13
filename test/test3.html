@@ -11,7 +11,7 @@
 
     function load(begin, end, cb) {
         var request = new XMLHttpRequest();
-        request.open('GET', 'test.mp3', true);
+        request.open('GET', 'src/test.m4a', true);
         request.responseType = 'arraybuffer';
         request.onload = function() {
             var arrayBuffer = request.response;
@@ -23,7 +23,7 @@
                 // 将播放节点连接到播放设备
                 bufferSourceNode.connect(audioContext.destination);
                 // 播放
-                bufferSourceNode.start(0,10);
+                bufferSourceNode.start(0);
                 var begin = new Date().getTime();
                 bufferSourceNode.onended = function() {
                     console.log('end', new Date().getTime() - begin);

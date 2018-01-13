@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=750">
+    <title>m4a音频解析</title>
+    <script type="text/javascript" src="../sea.js"></script>
+    <script type="text/javascript">
+    seajs.use("m4a/m4ainfo.js",function(M4A){
+        var request = new XMLHttpRequest();
+        request.open('GET', '../../test/src/test.m4a', true);
+        request.responseType = 'arraybuffer';
+        request.onload = function() {
+            var buffer = request.response;
+            var m4a = new M4A(buffer);
+            m4a.parseInfo();
+        }
+        request.setRequestHeader("Range", 'bytes=' + 0 + '-');
+        request.send();
+    });
+    </script>
+</head>
+
+</html>
