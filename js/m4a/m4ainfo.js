@@ -72,16 +72,61 @@ define(function(require, exports, module){
 			return false;
 		var version = this.bitStream.getByte();
 		this.bitStream.skipBytes(3);
+		this.mvhd = {};
 		if(version){
 			this.bitStream.skipBytes(16);
-			this.timescale = this.bitStream.getBits(32);
-			this.duration = this.bitStream.getBits(64);
+			this.mvhd.timescale = this.bitStream.getBits(32);
+			this.mvhd.duration = this.bitStream.getBits(64);
 			this.bitStream.skipBytes(this.mvhdSize-8-4-16-4-8);
 		}else{
 			this.bitStream.skipBytes(8);
-			this.timescale = this.bitStream.getBits(32);
-			this.duration = this.bitStream.getBits(32);
+			this.mvhd.timescale = this.bitStream.getBits(32);
+			this.mvhd.duration = this.bitStream.getBits(32);
 			this.bitStream.skipBytes(this.mvhdSize-8-4-8-4-4);
+		}
+		return true;
+	}
+	/**
+	 * 解析tkhd信息
+	 * @return {boolean} 解析是否成功
+	 */
+	_proto_.parseTkhd = function(){
+		if(!this.findBoxType('tkhd'))
+			return false;
+		var version = this.bitStream.getByte();
+		this.bitStream.skipBytes(3);
+		this.thkd = {};
+		if(version){
+			this.bitStream.skipBytes(32);
+			this.thkd.duration = this.bitStream.getBits(64);
+			this.bitStream.skipBytes(this.tkhdSize-8-4-32-8);
+		}else{
+			this.bitStream.skipBytes(16);
+			this.thkd.duration = this.bitStream.getBits(32);
+			this.bitStream.skipBytes(this.tkhdSize-8-4-16-4);
+		}
+		return true;
+	}
+	/**
+	 * 解析tkhd信息
+	 * @return {boolean} 解析是否成功
+	 */
+	_proto_.parseMdhd = function(){
+		if(!this.findBoxType('mdhd'))
+			return false;
+		var version = this.bitStream.getByte();
+		this.bitStream.skipBytes(3);
+		this.mdhd = {};
+		if(version){
+			this.bitStream.skipBytes(16);
+			this.mdhd.timescale = this.bitStream.getBits(32);
+			this.mdhd.duration = this.bitStream.getBits(64);
+			this.bitStream.skipBytes(this.mdhdSize-8-4-16-4-8);
+		}else{
+			this.bitStream.skipBytes(8);
+			this.mdhd.timescale = this.bitStream.getBits(32);
+			this.mdhd.duration = this.bitStream.getBits(32);
+			this.bitStream.skipBytes(this.mdhdSize-8-4-8-4-4);
 		}
 		return true;
 	}
@@ -94,7 +139,8 @@ define(function(require, exports, module){
 		this.stsc = [];
 		this.stsz = {};
 		this.stco = [];
-		if(!this.findBoxType('trak')||!this.findBoxType('mdia')||!this.findBoxType('minf')||!this.findBoxType('stbl'))
+		
+		if(!this.findBoxType('stbl'))
 			return false;
 		if(!this.findBoxType('stts')){
 			return false;
@@ -154,9 +200,28 @@ define(function(require, exports, module){
 		if(!this.findBoxType('moov')){
 			return false;
 		}
-
 		//解析movie header
 		if(!this.parseMvhd()){
+			return false;
+		}
+		//track-box包含tkhd，mdia
+		if(!this.findBoxType('trak')){
+			return false;
+		}
+		//解析tkhd
+		if(!this.parseTkhd()){
+			return false;
+		}
+		//mdia-box包含mdhd，minf
+		if(!this.findBoxType('mdia')){
+			return false;
+		}
+		//解析mdhd
+		if(!this.parseMdhd()){
+			return false;
+		}
+		//minf-box包含stbl
+		if(!this.findBoxType('minf')){
 			return false;
 		}
 		//解析stbl
