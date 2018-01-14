@@ -9,7 +9,7 @@
     <script type="text/javascript">
     seajs.use("m4a/m4ainfo.js",function(M4A){
         new M4A('../../test/src/test.m4a').init().then(function(info){
-
+            info.rebuildByTime(10);
         })
     });
     </script>

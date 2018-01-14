@@ -45,6 +45,7 @@ define(function(require, exports, module){
                		self.bitStream.reset();
                		if(arrayBuffer.byteLength >= size+moovSize){
 	               		if(self.parseInfo()){
+	               			self.meta = arrayBuffer.slice(0,size+moovSize); //保存元数据，用于重建
 		               		resolve(self);
 	               		}else{
 	               			reject();
@@ -70,6 +71,7 @@ define(function(require, exports, module){
 					var arrayBuffer = request.response;
 					self.bitStream = new BitStream(arrayBuffer);
 					if(self.parseInfo()){
+						self.meta = arrayBuffer.slice(0,size+self.sizes.typeSize);
 						resolve(self);
 					}else{
 						reject();
@@ -216,7 +218,7 @@ define(function(require, exports, module){
 	_proto_.parseStbl = function(){
 		this.stts = [];
 		this.stsc = [];
-		this.stsz = {};
+		this.stsz = [];
 		this.stco = [];
 		
 		if(!this.findBoxType('stbl'))
@@ -256,9 +258,8 @@ define(function(require, exports, module){
 		this.stsz.sampleSize = this.bitStream.getBits(32);
 		this.stsz.count = this.bitStream.getBits(32);
 		if(this.stsz.sampleSize==0){
-			this.stsz.entrySize = [];
 			for(var i=0; i<this.stsz.count; i++){
-				this.stsz.entrySize[i] =  this.bitStream.getBits(32);
+				this.stsz[i] = this.bitStream.getBits(32);
 			}
 		}
 
@@ -269,9 +270,7 @@ define(function(require, exports, module){
 		this.stco.beginPos = this.bitStream.getBytePos();
 		this.stco.count = this.bitStream.getBits(32);
 		for(var i=0; i<this.stco.count; i++){
-			this.stco[i] = {
-				chunk_offset: this.bitStream.getBits(32)
-			};
+			this.stco[i] = this.bitStream.getBits(32);
 		}
 		return true;
 	}
@@ -313,6 +312,50 @@ define(function(require, exports, module){
 		}
 		return true;
 	}
-
+	/**
+	 * 根据时间重建moov-box
+	 * @return {number} 偏移量
+	 */
+	_proto_.rebuildByTime = function(seconds){
+		var time = seconds*this.mdhd.timescale;
+		var tsSum=0,scSum=0,preScSum=0,coSum=0,cIndex=0,sample,chunk,offset;
+		//time->sample
+		for(var i=0; i<this.stts.length; i++){
+			tsSum+=this.stts[i].sampleDelta*this.stts[i].sampleCount;
+			if(time<tsSum){
+				sample = Math.ceil(time/this.stts[i].sampleDelta);
+			}
+		}
+		if(!sample){
+			time = tsSum;
+		}
+		//sample->chunk
+		for(var i=0; i<this.stsc.length-1; i++){
+			scSum+=(this.stsc[i+1].firstChunk-1)*this.stsc[i].samplesPerChunk;
+			if(sample<=scSum){
+				cIndex = i;
+				chunk = this.stsc[i].firstChunk+Math.floor((sample-preScSum)/this.stsc[i].samplesPerChunk);
+				break;
+			}
+			preScSum = scSum;
+		}
+		if(!chunk){
+			cIndex = i;
+			chunk = this.stsc[i].firstChunk+Math.floor((sample-preScSum)/this.stsc[i].samplesPerChunk);
+		}
+		//chunk->offset
+		offset = this.stco[chunk-1];
+		var ciSample,sbegin;
+		ciSample = (sample-preScSum)%this.stsc[cIndex].samplesPerChunk-1;
+		sbegin = sample-ciSample;
+		for(var i=0; i<ciSample; i++){
+			if(this.stsz.length){
+				offset+=this.stsz[sbegin+i-1];
+			}else{
+				offset+=this.stsz.sampleSize;
+			}
+		}
+		return offset;
+	}
 	return M4aInfo;
 })
