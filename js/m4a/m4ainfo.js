@@ -75,12 +75,16 @@ define(function(require, exports, module){
 		this.mvhd = {};
 		if(version){
 			this.bitStream.skipBytes(16);
+			this.mvhd.timescalePos = this.bitStream.getBytePos();
 			this.mvhd.timescale = this.bitStream.getBits(32);
+			this.mvhd.durationPos = this.bitStream.getBytePos();
 			this.mvhd.duration = this.bitStream.getBits(64);
 			this.bitStream.skipBytes(this.mvhdSize-8-4-16-4-8);
 		}else{
 			this.bitStream.skipBytes(8);
+			this.mvhd.timescalePos = this.bitStream.getBytePos();
 			this.mvhd.timescale = this.bitStream.getBits(32);
+			this.mvhd.durationPos = this.bitStream.getBytePos();
 			this.mvhd.duration = this.bitStream.getBits(32);
 			this.bitStream.skipBytes(this.mvhdSize-8-4-8-4-4);
 		}
@@ -95,14 +99,16 @@ define(function(require, exports, module){
 			return false;
 		var version = this.bitStream.getByte();
 		this.bitStream.skipBytes(3);
-		this.thkd = {};
+		this.tkhd = {};
 		if(version){
 			this.bitStream.skipBytes(32);
-			this.thkd.duration = this.bitStream.getBits(64);
+			this.tkhd.durationPos = this.bitStream.getBytePos();
+			this.tkhd.duration = this.bitStream.getBits(64);
 			this.bitStream.skipBytes(this.tkhdSize-8-4-32-8);
 		}else{
 			this.bitStream.skipBytes(16);
-			this.thkd.duration = this.bitStream.getBits(32);
+			this.tkhd.durationPos = this.bitStream.getBytePos();
+			this.tkhd.duration = this.bitStream.getBits(32);
 			this.bitStream.skipBytes(this.tkhdSize-8-4-16-4);
 		}
 		return true;
@@ -119,12 +125,16 @@ define(function(require, exports, module){
 		this.mdhd = {};
 		if(version){
 			this.bitStream.skipBytes(16);
+			this.mdhd.timescalePos = this.bitStream.getBytePos();
 			this.mdhd.timescale = this.bitStream.getBits(32);
+			this.mdhd.durationPos = this.bitStream.getBytePos();
 			this.mdhd.duration = this.bitStream.getBits(64);
 			this.bitStream.skipBytes(this.mdhdSize-8-4-16-4-8);
 		}else{
 			this.bitStream.skipBytes(8);
+			this.mdhd.timescalePos = this.bitStream.getBytePos();
 			this.mdhd.timescale = this.bitStream.getBits(32);
+			this.mdhd.durationPos = this.bitStream.getBytePos();
 			this.mdhd.duration = this.bitStream.getBits(32);
 			this.bitStream.skipBytes(this.mdhdSize-8-4-8-4-4);
 		}
@@ -146,6 +156,7 @@ define(function(require, exports, module){
 			return false;
 		}
 		this.bitStream.skipBits(32);
+		this.stts.beginPos = this.bitStream.getBytePos();
 		this.stts.count = this.bitStream.getBits(32);
 		for(var i=0; i<this.stts.count; i++){
 			this.stts[i] = {
@@ -158,6 +169,7 @@ define(function(require, exports, module){
 			return false;
 		}
 		this.bitStream.skipBits(32);
+		this.stsc.beginPos = this.bitStream.getBytePos();
 		this.stsc.count = this.bitStream.getBits(32);
 		for(var i=0; i<this.stsc.count; i++){
 			this.stsc[i] = {
@@ -171,6 +183,7 @@ define(function(require, exports, module){
 			return false;
 		}
 		this.bitStream.skipBits(32);
+		this.stsz.beginPos = this.bitStream.getBytePos();
 		this.stsz.sampleSize = this.bitStream.getBits(32);
 		this.stsz.count = this.bitStream.getBits(32);
 		if(this.stsz.sampleSize==0){
@@ -184,6 +197,7 @@ define(function(require, exports, module){
 			return false;
 		}
 		this.bitStream.skipBits(32);
+		this.stco.beginPos = this.bitStream.getBytePos();
 		this.stco.count = this.bitStream.getBits(32);
 		for(var i=0; i<this.stco.count; i++){
 			this.stco[i] = {
