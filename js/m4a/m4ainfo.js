@@ -148,14 +148,14 @@ define(function(require, exports, module){
 			this.mvhd.timescale = this.bitStream.getBits(32);
 			this.mvhd.durationPos = this.bitStream.getBytePos();
 			this.mvhd.duration = this.bitStream.getBits(64);
-			this.bitStream.skipBytes(this.mvhdSize-8-4-16-4-8);
+			this.bitStream.skipBytes(this.sizes['mvhdSize']-8-4-16-4-8);
 		}else{
 			this.bitStream.skipBytes(8);
 			this.mvhd.timescalePos = this.bitStream.getBytePos();
 			this.mvhd.timescale = this.bitStream.getBits(32);
 			this.mvhd.durationPos = this.bitStream.getBytePos();
 			this.mvhd.duration = this.bitStream.getBits(32);
-			this.bitStream.skipBytes(this.mvhdSize-8-4-8-4-4);
+			this.bitStream.skipBytes(this.sizes['mvhdSize']-8-4-8-4-4);
 		}
 		return true;
 	}
@@ -173,12 +173,12 @@ define(function(require, exports, module){
 			this.bitStream.skipBytes(32);
 			this.tkhd.durationPos = this.bitStream.getBytePos();
 			this.tkhd.duration = this.bitStream.getBits(64);
-			this.bitStream.skipBytes(this.tkhdSize-8-4-32-8);
+			this.bitStream.skipBytes(this.sizes['tkhdSize']-8-4-32-8);
 		}else{
 			this.bitStream.skipBytes(16);
 			this.tkhd.durationPos = this.bitStream.getBytePos();
 			this.tkhd.duration = this.bitStream.getBits(32);
-			this.bitStream.skipBytes(this.tkhdSize-8-4-16-4);
+			this.bitStream.skipBytes(this.sizes['tkhdSize']-8-4-16-4);
 		}
 		return true;
 	}
@@ -198,14 +198,14 @@ define(function(require, exports, module){
 			this.mdhd.timescale = this.bitStream.getBits(32);
 			this.mdhd.durationPos = this.bitStream.getBytePos();
 			this.mdhd.duration = this.bitStream.getBits(64);
-			this.bitStream.skipBytes(this.mdhdSize-8-4-16-4-8);
+			this.bitStream.skipBytes(this.sizes['mdhdSize']-8-4-16-4-8);
 		}else{
 			this.bitStream.skipBytes(8);
 			this.mdhd.timescalePos = this.bitStream.getBytePos();
 			this.mdhd.timescale = this.bitStream.getBits(32);
 			this.mdhd.durationPos = this.bitStream.getBytePos();
 			this.mdhd.duration = this.bitStream.getBits(32);
-			this.bitStream.skipBytes(this.mdhdSize-8-4-8-4-4);
+			this.bitStream.skipBytes(this.sizes['mdhdSize']-8-4-8-4-4);
 		}
 		return true;
 	}
