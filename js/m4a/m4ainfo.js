@@ -227,8 +227,8 @@ define(function(require, exports, module){
 			return false;
 		}
 		this.bitStream.skipBits(32);
-		this.stts.beginPos = this.bitStream.getBytePos();
 		this.stts.count = this.bitStream.getBits(32);
+		this.stts.beginPos = this.bitStream.getBytePos();
 		for(var i=0; i<this.stts.count; i++){
 			this.stts[i] = {
 				sampleCount: this.bitStream.getBits(32),
@@ -240,8 +240,8 @@ define(function(require, exports, module){
 			return false;
 		}
 		this.bitStream.skipBits(32);
-		this.stsc.beginPos = this.bitStream.getBytePos();
 		this.stsc.count = this.bitStream.getBits(32);
+		this.stsc.beginPos = this.bitStream.getBytePos();
 		for(var i=0; i<this.stsc.count; i++){
 			this.stsc[i] = {
 				firstChunk: this.bitStream.getBits(32),
@@ -254,9 +254,9 @@ define(function(require, exports, module){
 			return false;
 		}
 		this.bitStream.skipBits(32);
-		this.stsz.beginPos = this.bitStream.getBytePos();
 		this.stsz.sampleSize = this.bitStream.getBits(32);
 		this.stsz.count = this.bitStream.getBits(32);
+		this.stsz.beginPos = this.bitStream.getBytePos();
 		if(this.stsz.sampleSize==0){
 			for(var i=0; i<this.stsz.count; i++){
 				this.stsz[i] = this.bitStream.getBits(32);
@@ -267,8 +267,8 @@ define(function(require, exports, module){
 			return false;
 		}
 		this.bitStream.skipBits(32);
-		this.stco.beginPos = this.bitStream.getBytePos();
 		this.stco.count = this.bitStream.getBits(32);
+		this.stco.beginPos = this.bitStream.getBytePos();
 		for(var i=0; i<this.stco.count; i++){
 			this.stco[i] = this.bitStream.getBits(32);
 		}
@@ -318,7 +318,8 @@ define(function(require, exports, module){
 	 */
 	_proto_.rebuildByTime = function(seconds){
 		var time = seconds*this.mdhd.timescale;
-		var tsSum=0,scSum=0,preScSum=0,coSum=0,cIndex=0,sample,chunk,offset;
+		var tsSum=0,scSum=0,preScSum=0,coSum=0,cIndex=0,sample,chunk,offset,beginPos,beginIndex,tmp;
+		var uint8Array = new Uint8Array(this.meta);
 		//time->sample
 		for(var i=0; i<this.stts.length; i++){
 			tsSum+=this.stts[i].sampleDelta*this.stts[i].sampleCount;
@@ -355,6 +356,93 @@ define(function(require, exports, module){
 				offset+=this.stsz.sampleSize;
 			}
 		}
+
+		//rebuild
+		
+		//rebuild-stts
+		beginPos = this.stts.beginPos;
+		beginIndex=0;
+		tsSum=0;
+		for(var i=0; i<this.stts.length; i++){ //清零
+			_clearInt(beginPos);
+			beginPos+=8
+		}
+		for(var i=0; i<this.stts.length; i++){
+			if(tsSum+this.stts[i].sampleCount >= sample){
+				beginIndex = i;
+				break;
+			}
+			tsSum+=this.stts[i].sampleCount;
+		}
+		beginPos = this.stts.beginPos;
+		_setInt(beginPos, this.stts[beginIndex].sampleCount-(sample-tsSum-1));
+		beginPos+=8;
+		for(var i=beginIndex+1; i<this.stts.length; i++){ //重新赋值
+			_setInt(beginPos, this.stts[i].sampleCount);
+			_setInt(beginPos+4, this.stts[i].sampleDelta);
+			beginPos+=8;
+		}
+		//rebuild-stsc
+		var beginPos = this.stsc.beginPos;
+		for(var i=0; i<this.stsc.length; i++){ //清零
+			_clearInt(beginPos);
+			beginPos+=12;
+		}
+		for(var i=0; i<this.stsc.length-1; i++){
+			if(this.stsc[i+1].firstChunk-1 >= chunk){
+				i++;
+				break;
+			}
+		}
+		beginPos = this.stsc.beginPos
+		for(; i<this.stsc.length; i++){ //重新赋值
+			tmp = this.stsc[i].firstChunk-chunk+1;
+			_setInt(beginPos,tmp);
+			_setInt(beginPos+4,this.stsc[i].samplesPerChunk);
+			_setInt(beginPos+8,this.stsc[i].sampleDescriptionIndex);
+			beginPos+=12;
+		}
+		//rebuild-stsz
+		beginPos = this.stsz.beginPos;
+		for(var i=0; i<this.stsz.length-(sample-1); i++){ //重新赋值
+			_setInt(beginPos,this.stsz[i+sample-1]);
+			beginPos+=4;
+		}
+		for(; i<this.stsz.length; i++){ //清空尾部多余数据
+			_clearInt(beginPos);
+			beginPos+=4;
+		}
+		//rebuild-stco
+		beginPos = this.stco.beginPos;
+		tmp = offset-this.stco[0];
+		for(var i=0; i<this.stco.length-(chunk-1); i++){ //重新赋值
+			_setInt(beginPos,this.stco[i]+tmp);
+			beginPos+=4;
+		}
+		tmp = this.stco[i-1]+tmp;
+		for(; i<this.stco.length; i++){ //尾部多余的项
+			_setInt(beginPos,tmp);
+			beginPos+=4;
+		}
+
+		function _setInt(beginPos,value){ //赋值4位整数
+			var tmp = 0;
+			uint8Array[beginPos] = (value/(1<<24))>>0;
+			tmp = value - uint8Array[beginPos]<<24;
+			uint8Array[beginPos+1] = (tmp/(1<<16))>>0;
+			tmp -= uint8Array[beginPos+1]<<16;
+			uint8Array[beginPos+2] = (tmp/(1<<8))>>0;
+			tmp -= uint8Array[beginPos+2]<<8;
+			uint8Array[beginPos+3] = tmp;
+			
+		}
+		function _clearInt(beginPos){ //清楚4位整数
+			uint8Array[beginPos] = 0;
+			uint8Array[beginPos+1] = 0;
+			uint8Array[beginPos+2] = 0;
+			uint8Array[beginPos+3] = 0;
+		}
+
 		return offset;
 	}
 	return M4aInfo;
