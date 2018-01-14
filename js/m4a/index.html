@@ -8,16 +8,9 @@
     <script type="text/javascript" src="../sea.js"></script>
     <script type="text/javascript">
     seajs.use("m4a/m4ainfo.js",function(M4A){
-        var request = new XMLHttpRequest();
-        request.open('GET', '../../test/src/test.m4a', true);
-        request.responseType = 'arraybuffer';
-        request.onload = function() {
-            var buffer = request.response;
-            var m4a = new M4A(buffer);
-            m4a.parseInfo();
-        }
-        request.setRequestHeader("Range", 'bytes=' + 0 + '-');
-        request.send();
+        new M4A('../../test/src/test.m4a').init().then(function(info){
+
+        })
     });
     </script>
 </head>

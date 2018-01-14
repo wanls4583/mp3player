@@ -4,27 +4,95 @@
 define(function(require, exports, module){
 	'use strict';
 
+	var requestRange = require('../common/range');
 	var BitStream = require('../common/bitstream');
 
-	function M4aInfo(arrayBuffer){
-		this.bitStream = new BitStream(arrayBuffer);
+	function M4aInfo(url){
+		this.url = url;
 	}
 
 	var _proto_ = M4aInfo.prototype;
+
+	_proto_.init = function(){
+		var self = this;
+		return new Promise(function(resolve,reject){
+			self.loadTypeInfo(resolve,reject);
+		}).then(function(size){
+			if(typeof size === 'number'){
+				return self.loadMoovInfo(size);
+			}else{
+				return self;
+			}
+		})
+	}
+	/**
+	 * 加载文件类型信息
+	 */
+	_proto_.loadTypeInfo = function(resolve,reject){
+		var self = this;
+		requestRange(self.url, 0, 1024*40, { //40K
+        	onsuccess: function(request) {
+               var arrayBuffer = request.response;
+               var size = 0;
+               self.bitStream = new BitStream(arrayBuffer);
+               size = self.checkM4a();
+               self.typeSize = size;
+               if(!size){
+               		reject();
+               }else if(size+8<arrayBuffer.byteLength){
+               		var moovSize = self.findBoxType('moov');
+               		self.bitStream.reset();
+               		if(arrayBuffer.byteLength >= size+moovSize){
+	               		if(self.parseInfo()){
+		               		resolve(self);
+	               		}else{
+	               			reject();
+	               		}
+               		}else{
+               			resolve(moovSize);
+               		}
+               }else{
+               		size = self.findBoxType('moov');
+               		resolve(size);
+               }
+            }
+        });
+	}
+	/**
+	 * 加载文件元数据信息
+	 */
+	_proto_.loadMoovInfo = function(size){
+		var self = this;
+		return new Promise(function(resolve,reject){
+			requestRange(self.url, 0, size+self.typeSize, {
+	        	onsuccess: function(request) {
+					var arrayBuffer = request.response;
+					self.bitStream = new BitStream(arrayBuffer);
+					if(self.parseInfo()){
+						resolve(self);
+					}else{
+						reject();
+					}
+	            }
+	        });
+		})
+	}
 	/**
 	 * 检测是否为m4a格式
 	 * @return {boolean} 是否为m4a
 	 */
 	_proto_.checkM4a = function(){
-		var length = this.bitStream.getBits(32);
+		var boxSize = this.bitStream.getBits(32);
 		var strs = '';
-		length = length>32?32:length;
-		while(this.bitStream.getBytePos() < length){
+		if(boxSize>100){
+			return false;
+		}
+		while(this.bitStream.getBytePos() < boxSize && !this.bitStream.isEnd()){
 			strs+=String.fromCharCode(this.bitStream.getByte());
 		}
 		if(strs.indexOf('M4A')!=-1){
 			this.bitStream.reset();
-			return true;
+			return boxSize;
 		}
 		return false;
 	}
@@ -204,13 +272,13 @@ define(function(require, exports, module){
 				chunk_offset: this.bitStream.getBits(32)
 			};
 		}
+		return true;
 	}
 	/**
 	 * 解析元数据
 	 * @return {[type]} [description]
 	 */
 	_proto_.parseInfo = function(){
-		
 		if(!this.findBoxType('moov')){
 			return false;
 		}
@@ -242,6 +310,7 @@ define(function(require, exports, module){
 		if(!this.parseStbl()){
 			return false;
 		}
+		return true;
 	}
 
 	return M4aInfo;
