@@ -82,6 +82,7 @@ define(function(require, exports, module) {
                     self.audioInfo.audioDataOffset = id3tag.parseId3V2() + id3tag.parseApe();
 	                self.audioInfo.fileSize = parseInt(contetnRange.substr(contetnRange.indexOf('/') + 1));
                     if(self.audioInfo.audioDataOffset+158*8 < arrayBuffer.byteLength){ //如果包含第一恶数据帧
+                        self.audioInfo.extra = arrayBuffer.slice(self.audioInfo.audioDataOffset);
                         resolve(arrayBuffer.slice(self.audioInfo.audioDataOffset,self.audioInfo.audioDataOffset+158*8));
                     }else{
                         resolve();
