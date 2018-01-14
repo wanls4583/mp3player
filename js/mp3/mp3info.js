@@ -38,8 +38,12 @@ define(function(require, exports, module) {
         	}
             return new Promise(function(resolve, reject){
             	self._loadHeaderInfo(resolve, reject);
-            }).then(function(){
-            	return self._loadFirstFrame();
+            }).then(function(arrayBuffer){
+                if(arrayBuffer){
+                    return arrayBuffer;
+                }else{
+                	return self._loadFirstFrame();
+                }
             }).then(function(arrayBuffer){
             	var header = new Mp3Header(new bitStream(arrayBuffer));
                 var result = header.parseHeader(true);
@@ -51,7 +55,10 @@ define(function(require, exports, module) {
                     self.audioInfo.totalTime = header.totalDuration;
                     self.audioInfo.bitRate = header.bitRate;
                     if(!self.audioInfo.toc){ //cbr模式
-                        return self._getFooterLength();
+                        self.audioInfo.totalSize = self.audioInfo.fileSize - self.audioInfo.audioDataOffset;
+                        self.audioInfo.totalTime = self.audioInfo.totalSize*8 / self.audioInfo.bitRate;
+                        self.loadedmetaCb(self.audioInfo);
+                        return self.audioInfo;
                     }else{
                         self.loadedmetaCb(self.audioInfo);
                         return self.audioInfo;
@@ -64,8 +71,8 @@ define(function(require, exports, module) {
         //ajax获取音频头部标签头(32B)
         _loadHeaderInfo: function(resolve, reject) {
             var self = this;
-            requestRange(self.url, 0, 32 * 8 + 32 * 8 - 1, {
-            	onsuccess: function(request) { //加载前32个字节（判断是否存在ID3V2|Ape头）
+            requestRange(self.url, 0, 32 * 8 + 32 * 8 - 1 + 1024*200, { //多加200K，同时加载第一个数据帧
+            	onsuccess: function(request) { //加载前32个字节（判断是否存在ID3V2|Ape头，一般不会同时存在）
 	                var arrayBuffer = request.response;
 	                var contetnRange = request.getResponseHeader('Content-Range');
 	                var length = 0;
@@ -74,7 +81,11 @@ define(function(require, exports, module) {
                     id3tag = new Mp3Id3Tag(arrayBuffer);
                     self.audioInfo.audioDataOffset = id3tag.parseId3V2() + id3tag.parseApe();
 	                self.audioInfo.fileSize = parseInt(contetnRange.substr(contetnRange.indexOf('/') + 1));
-                    resolve();
+                    if(self.audioInfo.audioDataOffset+158*8 < arrayBuffer.byteLength){ //如果包含第一恶数据帧
+                        resolve(arrayBuffer.slice(self.audioInfo.audioDataOffset,self.audioInfo.audioDataOffset+158*8));
+                    }else{
+                        resolve();
+                    }
 	            }
             });
         },
