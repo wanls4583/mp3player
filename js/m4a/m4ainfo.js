@@ -8,6 +8,7 @@ define(function(require, exports, module){
 	var BitStream = require('../common/bitstream');
 
 	function M4aInfo(url){
+		this.sizes = {};//存储各种元数据的长度
 		this.url = url;
 	}
 
@@ -36,7 +37,7 @@ define(function(require, exports, module){
                var size = 0;
                self.bitStream = new BitStream(arrayBuffer);
                size = self.checkM4a();
-               self.typeSize = size;
+               self.sizes.typeSize = size;
                if(!size){
                		reject();
                }else if(size+8<arrayBuffer.byteLength){
@@ -64,7 +65,7 @@ define(function(require, exports, module){
 	_proto_.loadMoovInfo = function(size){
 		var self = this;
 		return new Promise(function(resolve,reject){
-			requestRange(self.url, 0, size+self.typeSize, {
+			requestRange(self.url, 0, size+self.sizes.typeSize, {
 	        	onsuccess: function(request) {
 					var arrayBuffer = request.response;
 					self.bitStream = new BitStream(arrayBuffer);
@@ -128,7 +129,7 @@ define(function(require, exports, module){
 		}
 		if(boxType!=type)
 			return false;
-		this[type+'Size'] = boxSize;
+		this.sizes[type+'Size'] = boxSize;
 		return boxSize;
 	}
 	/**
