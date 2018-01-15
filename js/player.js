@@ -124,7 +124,9 @@ define(function(require, exports, module) {
                         if(minSize>1){
                             minSize--;
                         }
-                        self._decodeAudioData(index+1, minSize, negative, beginDecodeTime);
+                        if(minSize>0){
+                            self._decodeAudioData(index+1, minSize, negative, beginDecodeTime);
+                        }
                     });
 
                     return result;
@@ -360,14 +362,19 @@ define(function(require, exports, module) {
                                 }
                                 Util.log('load完成:', beginIndex, beginIndex + minSize - 1);
                                 if (self.loadingPromise && !self.loadingPromise.stopNextLoad) { //seek后应该从新的位置加载后面的数据
-                                    var length = 0;
+                                    var length = 0, size = self.firstLoadSize*4;
                                     for(var i=self.endIndex; self.endIndex && self.fileBlocks[i] && i<indexSize; i++){
                                         length+=self.fileBlocks[i].byteLength;
                                     }
-                                    if(index + originMinSize < indexSize && length<maxDecodeSize){
-                                        setTimeout(function() {
-                                            self._loadFrame(index + originMinSize, self.firstLoadSize*4);
-                                        }, 0)
+                                    if(index + originMinSize < indexSize && length < maxDecodeSize){
+                                        if(length+size/indexSize*self.audioInfo.fileSize > maxDecodeSize){
+                                            size = ((maxDecodeSize-length)/(self.audioInfo.fileSize/indexSize))>>0
+                                        }
+                                        if(size>0){
+                                            setTimeout(function() {
+                                                self._loadFrame(index + originMinSize, size);
+                                            }, 1000);
+                                        }
                                     }
                                 }
                                 self.loadingPromise = null;
