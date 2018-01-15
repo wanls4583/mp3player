@@ -140,7 +140,6 @@ define(function(require, exports, module) {
                 var sourceNode = this.audioContext.createBufferSource();
                 var index = this.endIndex;
                 sourceNode.buffer = this.nextBuffer;
-                this.nowBuffer = this.nextBuffer;
                 this.nextBuffer = null;
                 sourceNode.connect(this.audioContext.destination);
                 sourceNode.onended = function() { //播放一段音频后立马播放下一段音频
@@ -208,13 +207,6 @@ define(function(require, exports, module) {
                 this._startUpdateTimeoutId(); //开始计时
                 this.hasPlayed = true; //已经开始播放
                 this.isPlaying = true; //正在播放中标识
-                // setTimeout(function(){ //ios状态变更有延迟
-                //     if(self.audioContext.state != 'running' && !self.pause){ //ios需要手动触发
-                //         self.pause = true;
-                //         pauseCb();
-                //         clearTimeout(self._timeoutIds.playTimoutId);
-                //     }
-                // },10);
             },
             //跳转某个索引
             _seek: function(index) {
@@ -687,7 +679,6 @@ define(function(require, exports, module) {
                     _playerObj.request.abort(); //强制中断下载
                 }
                 _playerObj.fileBlocks = []; //释放内存
-                _playerObj.nowBuffer = null;
                 _playerObj.nextBuffer = null;
                 _playerObj = null;
             }
