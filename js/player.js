@@ -27,10 +27,9 @@ define(function(require, exports, module) {
         var frameDuration = 0; //一帧的时长
         var isIos = navigator.userAgent.indexOf('iPhone') > -1;
         var AudioInfo = null;
-        var audio = null;
-        if (isIos) {
-            audio = new Audio();
-            audio.src = opt.emptyUrl;
+        if (isIos && !window.emptyAudio) {
+            window.emptyAudio = new Audio();
+            window.emptyAudio.src = opt.emptyUrl;
         }
         //音频播放对象
         var _playerObj = {
@@ -38,7 +37,10 @@ define(function(require, exports, module) {
                 var self = this;
                 this.audioInfo = audioInfo; //音频信息
                 this.bufferLength = 0; //音频全部解码后总大小
-                this.audioContext = window.audioContext ? window.audioContext : (window.audioContext = new(window.AudioContext || window.webkitAudioContext)()); //音频上下文对象
+                //音频上下文对象，用于播放
+                this.audioContext = window.audioContext ? window.audioContext : (window.audioContext = new(window.AudioContext || window.webkitAudioContext)()); 
+                //音频上下文对象，用于解码（用同一个上下文播放和解码时，当解码完成时会使正在播放的音频流出现短暂杂音）
+                this.decodeAudioContext = window.decodeAudioContext ? window.decodeAudioContext : (window.decodeAudioContext = new(window.AudioContext || window.webkitAudioContext)()); 
                 this.audioContext.onstatechange = function() {
                     if(self.audioContext){
                         if(self.audioContext.state!='running'){
@@ -49,6 +51,7 @@ define(function(require, exports, module) {
                     
                 }
                 this.fileBlocks = new Array(100); //音频数据分区
+                this.delLength = new Array(100); //记录需要删除的帧长
                 this.firstLoadSize = 0; //首次加载的分区数
                 this.indexSize = 100; //索引个数
                 this.seeking = false; //是否正在索引
@@ -88,8 +91,8 @@ define(function(require, exports, module) {
                     if (Util.ifDebug()) {
                         var decodeBeginTime = new Date().getTime();
                     }
-                    self.audioContext.decodeAudioData(result.arrayBuffer,function(buffer) {
-                        if (beginDecodeTime != self.beginDecodeTime) { //防止seek时，之前未完成的异步解码对新队列的影响
+                    self.decodeAudioContext.decodeAudioData(result.arrayBuffer,function(buffer) {
+                        if (beginDecodeTime != self.beginDecodeTime || !self.audioContext) { //防止seek时，之前未完成的异步解码对新队列的影响
                             return;
                         }
                         if (Util.ifDebug()) {
@@ -112,6 +115,9 @@ define(function(require, exports, module) {
                             }
                             self._play(0);
                             self.seeking = false;
+                        }
+                        for(var i=0; i<result.endIndex; i++){ //释放内存
+                            self.fileBlocks[i] = null;
                         }
                     },function(e){
                         Util.log(index, "解码失败", e);
@@ -139,6 +145,7 @@ define(function(require, exports, module) {
                 sourceNode.connect(this.audioContext.destination);
                 sourceNode.onended = function() { //播放一段音频后立马播放下一段音频
                     sourceNode.disconnect();
+                    sourceNode.onended = null;
                     if(index >= indexSize-1){
                         self.finished = true; //播放结束标识
                         self._clearTimeout();
@@ -152,7 +159,7 @@ define(function(require, exports, module) {
                             if (Util.ifDebug()) {
                                 Util.log('next');
                             }
-                            self._play(self.fileBlocks[self.beginIndex-1].delLength*2/self.nowBuffer.sampleRate-frameDuration);
+                            self._play(self.delLength[self.beginIndex-1]*2/self.audioContext.sampleRate-frameDuration);
                         }else if(!self.waiting){
                             self.waiting = true;
                             if(self.audioContext.state=='running'){ //防止连续调用两次suspend
@@ -163,6 +170,7 @@ define(function(require, exports, module) {
                             }
                         }
                     }
+                    sourceNode = null;
                 }
 
                 if (sourceNode.start) {
@@ -232,6 +240,11 @@ define(function(require, exports, module) {
                     this.waiting = true;
                     if(!this.pause){
                         waitingCb();
+                    }
+                }
+                for(var i=0; i<indexSize; i++){ //释放内存
+                    if(i<index || i>index+this.firstLoadSize){
+                        this.fileBlocks[i] = null;
                     }
                 }
                 if (this.loadingPromise) { //是否有数据正在加载
@@ -307,6 +320,9 @@ define(function(require, exports, module) {
                 }
                 begin = this._getRangeBeginByIndex(beginIndex); //Rnage开始偏移量
                 end = this._getRangeBeginByIndex(beginIndex + minSize) - 1; //Range结束偏移量
+                if(beginIndex==0 && this.audioInfo.extra && begin+this.audioInfo.extra.byteLength<end){ //解析元数据时有多出的音频数据
+                    begin += this.audioInfo.extra.byteLength;
+                }
                 Util.log('loading:', beginIndex, beginIndex + minSize - 1)
                 var promise = new Promise(function(resolve, reject) {
                     setTimeout(function() { //交出控制权给Player对象
@@ -317,12 +333,20 @@ define(function(require, exports, module) {
                     self.request = requestRange(url, begin, end, {
                         onsuccess: function(request) {
                             var arrayBuffer = request.response;
-                            var begin = 0;
-                            var end = 0;
                             //数据解密
                             decrypt(arrayBuffer).then(function(){
+                                var arr = null;
                                 //缓存数据块
-                                var arr = new Uint8Array(arrayBuffer);
+                                if(beginIndex==0 && self.audioInfo.extra && begin+self.audioInfo.extra.byteLength<end){ //解析元数据时有多出的音频数据
+                                    var tmp = new ArrayBuffer(self.audioInfo.extra.byteLength+arrayBuffer.byteLength);
+                                    arr = new Uint8Array(tmp);
+                                    arr.set(new Uint8Array(self.audioInfo.extra), 0);
+                                    arr.set(new Uint8Array(arrayBuffer), self.audioInfo.extra.byteLength);
+                                    arrayBuffer = tmp;
+                                }
+                                begin = 0;
+                                end = 0;
+                                arr = new Uint8Array(arrayBuffer);
                                 for (var i = beginIndex; i < beginIndex + minSize; i++) {
                                     if (audioInfo.toc) { //VBR编码模式
                                         if (i + 1 == beginIndex + minSize) {
@@ -344,7 +368,11 @@ define(function(require, exports, module) {
                                 }
                                 Util.log('load完成:', beginIndex, beginIndex + minSize - 1);
                                 if (self.loadingPromise && !self.loadingPromise.stopNextLoad) { //seek后应该从新的位置加载后面的数据
-                                    if(index + originMinSize < indexSize){
+                                    var length = 0;
+                                    for(var i=self.endIndex; self.endIndex && self.fileBlocks[i] && i<indexSize; i++){
+                                        length+=self.fileBlocks[i].byteLength;
+                                    }
+                                    if(index + originMinSize < indexSize && length<maxDecodeSize){
                                         setTimeout(function() {
                                             self._loadFrame(index + originMinSize, self.firstLoadSize*4);
                                         }, 0)
@@ -503,11 +531,11 @@ define(function(require, exports, module) {
                 }
                 if (!excludeEnd) { //从尾部开始
                     var endExtraLength = Util.getLengthByFrameSync(result, this.audioInfo.frameSync, null, true, endFrameSize);
-                    this.fileBlocks[endIndex].delLength = 0;
+                    this.delLength[endIndex] = 0;
                     if (endExtraLength) { //存储endFrameSize个帧给接下来的帧使用
                         this.fileBlocks[endIndex].rightDeledData = result.slice(result.byteLength - endExtraLength);
                         endExtraLength = Util.getLengthByFrameSync(this.fileBlocks[endIndex].rightDeledData, this.audioInfo.frameSync, null, true, 1);
-                        this.fileBlocks[endIndex].delLength = this.fileBlocks[endIndex].rightDeledData.byteLength - endExtraLength;
+                        this.delLength[endIndex] = this.fileBlocks[endIndex].rightDeledData.byteLength - endExtraLength;
                     }
                     endExtraLength = Util.getLengthByFrameSync(result, this.audioInfo.frameSync, null, true, 1);
                     if (endExtraLength) { //删除尾部不完整的一帧数据
@@ -526,10 +554,10 @@ define(function(require, exports, module) {
                 clearTimeout(this._timeoutIds.reloadTimeoutId);
             },
             //ios解锁audioContext
-            _unlock: function(){
-                var oscillator = this.audioContext.createOscillator();
+            _unlock: function(audioContext){
+                var oscillator = audioContext.createOscillator();
                 oscillator.frequency.value = 400;
-                oscillator.connect(this.audioContext.destination);
+                oscillator.connect(audioContext.destination);
                 oscillator.start(0);
                 oscillator.stop(0);
             }
@@ -585,14 +613,18 @@ define(function(require, exports, module) {
                 var audioInfo = _playerObj.audioInfo;
                 clearTimeout(_playerObj._timeoutIds.playTimoutId);
                 if (isIos && !window.hasClick) { //ios触发声音设备
-                    audio.addEventListener('timeupdate',function(){
-                        audio.pause();
+                    window.emptyAudio.addEventListener('timeupdate',function(){
+                        window.emptyAudio.pause();
                     });
-                    audio.play();
+                    window.emptyAudio.play();
                     if(!_playerObj.audioContext){
                         _playerObj.audioContext = window.audioContext ? window.audioContext : (window.audioContext = new(window.AudioContext || window.webkitAudioContext)());
                     }
-                    _playerObj._unlock();
+                    if(!_playerObj.decodeAudioContext){
+                        _playerObj.decodeAudioContext = window.decodeAudioContext ? window.decodeAudioContext : (window.decodeAudioContext = new(window.decodeAudioContext || window.webkitAudioContext)());
+                    }
+                    _playerObj._unlock(_playerObj.audioContext);
+                    _playerObj._unlock(_playerObj.decodeAudioContext);
                     window.hasClick = true;
                 }
                 if (!_playerObj.hasPlayed) { //seek后第一次播放或者音频首次加载后第一次播放
@@ -613,6 +645,7 @@ define(function(require, exports, module) {
                     if (_playerObj.finished) {
                         _playerObj._seek(0);
                     } else {
+                        _playerObj.isPlaying = true;
                         _playerObj.pause = false;
                         audioContext.resume(); //唤醒播放设备
                     }
@@ -648,11 +681,15 @@ define(function(require, exports, module) {
                         _playerObj.audioContext.suspend();
                     }
                     _playerObj.audioContext = null;
+                    _playerObj.decodeAudioContext = null;
                 }
                 if (_playerObj.loadingPromise) { //是否有数据正在加载
                     _playerObj.request.abort(); //强制中断下载
                 }
-                this.closed = true;
+                _playerObj.fileBlocks = []; //释放内存
+                _playerObj.nowBuffer = null;
+                _playerObj.nextBuffer = null;
+                _playerObj = null;
             }
             this.isPlaying = function(){
                 return _playerObj.isPlaying;
@@ -661,12 +698,18 @@ define(function(require, exports, module) {
                 decrypt: decrypt,
                 loadedmetaCb: loadedmetaCb
             }).then(function(audioInfo){
+                if(!_playerObj){ //对象已经销毁
+                    return;
+                }
                 _playerObj._init(audioInfo);
                 if(!audioInfo){
                     errorCb();
                     _playerObj.error = 'parse audioInfo failed';
                 }
             }).catch(function(){
+                if(!_playerObj){ //对象已经销毁
+                    return;
+                }
                 _playerObj.error = 'load audioInfo failed';
                 errorCb();
             })
