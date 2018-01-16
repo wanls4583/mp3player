@@ -74,7 +74,8 @@ define(function(require, exports, module) {
                 decodeTimeoutId: null, //解码计时器
                 updateIntervalId: null, //时间更新计时器
                 playTimoutId: null, //播放计时器
-                reloadTimeoutId: null //加载失败后重加载计时器
+                reloadTimeoutId: null, //加载失败后重加载计时器,
+                loadTimeoutId: null //循环加载计时器
             },
             //解码
             _decodeAudioData: function(index, minSize, negative, beginDecodeTime) {
@@ -86,6 +87,10 @@ define(function(require, exports, module) {
                 return this._loadFrame(index, minSize, negative, true).then(function(result) {
                     if (beginDecodeTime != self.beginDecodeTime || !result) { //see时强制停止
                         return false;
+                    }
+                    clearTimeout(self._timeoutIds.loadTimeoutId); //解码时停止加载数据
+                    if(self.loadingPromise){
+                        self.loadingPromise.stopNextLoad = true;
                     }
                     Util.log('解码:' + result.beginIndex + ',' + result.endIndex);
                     if (Util.ifDebug()) {
@@ -188,6 +193,12 @@ define(function(require, exports, module) {
                     }
                 }
 
+                var nextDecodeTime = 0;
+                if(self.endIndex-self.beginIndex <= self.firstLoadSize){
+                    nextDecodeTime = sourceNode.buffer.duration/2*1000;
+                }else{
+                    nextDecodeTime = sourceNode.buffer.duration/3*1000;
+                }
                 self._timeoutIds.decodeTimeoutId = setTimeout(function(){ //播放到一半时开始获取和解码下一段音频
                     var size = self.firstLoadSize*4; //解码数据长度为seek或者第一次播放时的4倍
                     if(size/indexSize*self.audioInfo.fileSize > maxDecodeSize){ //如果超出最多解码长度
@@ -195,14 +206,14 @@ define(function(require, exports, module) {
                     }
                     self.beginDecodeTime = new Date().getTime();
                     if (self.loadingPromise) { //是否有数据正在加载
-                        self.loadingPromise.stopNextLoad = true; //停止自动加载下一段
                         self.loadingPromise.then(function() {
                             self._decodeAudioData(self.endIndex + 1, size, null, self.beginDecodeTime);
                         });
+                        self.request.abort(); //强制中断下载
                     }else{
                         self._decodeAudioData(self.endIndex + 1, size, null, self.beginDecodeTime);
                     }
-                }, sourceNode.buffer.duration/2*1000);
+                }, nextDecodeTime);
 
                 this.nowSouceNode = sourceNode;
                 this.offsetTime = this.currentTime = this.beginIndex/indexSize*this.audioInfo.totalTime; //开始计时偏移量
@@ -371,13 +382,14 @@ define(function(require, exports, module) {
                                             size = ((maxDecodeSize-length)/(self.audioInfo.fileSize/indexSize))>>0
                                         }
                                         if(size>0){
-                                            setTimeout(function() {
+                                            self._timeoutIds.loadTimeoutId = setTimeout(function() {
                                                 self._loadFrame(index + originMinSize, size);
                                             }, 1000);
                                         }
                                     }
                                 }
                                 self.loadingPromise = null;
+                                tmp = arrayBuffer = null;
                                 if(join){ //是否合并
                                     resolve(self._joinNextCachedFileBlock(index, originMinSize, negative));
                                 }else{
@@ -551,6 +563,7 @@ define(function(require, exports, module) {
                 clearInterval(this._timeoutIds.updateIntervalId);
                 clearTimeout(this._timeoutIds.playTimoutId);
                 clearTimeout(this._timeoutIds.reloadTimeoutId);
+                clearTimeout(this._timeoutIds.loadTimeoutId);
             },
             //ios解锁audioContext
             _unlock: function(audioContext){
@@ -674,6 +687,7 @@ define(function(require, exports, module) {
                 _playerObj._clearTimeout();
                 if(_playerObj.nowSouceNode){
                     _playerObj.nowSouceNode.disconnect();
+                    _playerObj.nowSouceNode = null;
                 }
                 if(_playerObj.audioContext){
                     if(_playerObj.audioContext.state=='running'){ //防止连续调用两次suspend
