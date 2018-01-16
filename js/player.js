@@ -88,10 +88,6 @@ define(function(require, exports, module) {
                     if (beginDecodeTime != self.beginDecodeTime || !result) { //see时强制停止
                         return false;
                     }
-                    clearTimeout(self._timeoutIds.loadTimeoutId); //解码时停止加载数据
-                    if(self.loadingPromise){
-                        self.loadingPromise.stopNextLoad = true;
-                    }
                     Util.log('解码:' + result.beginIndex + ',' + result.endIndex);
                     if (Util.ifDebug()) {
                         var decodeBeginTime = new Date().getTime();
@@ -269,9 +265,6 @@ define(function(require, exports, module) {
                 this._timeoutIds.updateIntervalId = setInterval(function() {
                     var time = self.audioContext.currentTime - self.beginTime;
                     var currentTime = time + self.offsetTime;
-                    if (currentTime >= self.audioInfo.totalTime) {
-                        self._end();
-                    }
                     if (Math.round(currentTime) > self.currentTime) {
                         self.currentTime = Math.round(currentTime);
                         updateTimeCb(self.currentTime); //时间更新计时器回调
