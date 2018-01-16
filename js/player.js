@@ -195,9 +195,9 @@ define(function(require, exports, module) {
 
                 var nextDecodeTime = 0;
                 if(self.endIndex-self.beginIndex <= self.firstLoadSize){
-                    nextDecodeTime = sourceNode.buffer.duration/2*1000;
-                }else{
                     nextDecodeTime = sourceNode.buffer.duration/3*1000;
+                }else{
+                    nextDecodeTime = sourceNode.buffer.duration/2*1000;
                 }
                 self._timeoutIds.decodeTimeoutId = setTimeout(function(){ //播放到一半时开始获取和解码下一段音频
                     var size = self.firstLoadSize*4; //解码数据长度为seek或者第一次播放时的4倍
