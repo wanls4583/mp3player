@@ -5,13 +5,13 @@
  * https://www.codeproject.com/Articles/8295/MPEG-Audio-Frame-Header
  *
  * audioInfo需要包括的字段:{
- * 		fileSize: 音频文件大小(byte),
- * 		frameSync: 同步头（16进制字符串）,
- * 		totalTime: 总时长（秒）,
- * 		sampleRate: 采样率,
- * 		audioDataOffset: audioData开始偏移量（相对于0字节位置）,
- * 		totalSize: audioData总大小（仅当音频码率模式为VBR时返回）,
- *   	toc: 音频数据索引表（仅当音频码率模式为VBR时返回）	
+ *      fileSize: 音频文件大小(byte),
+ *      frameSync: 同步头（16进制字符串）,
+ *      totalTime: 总时长（秒）,
+ *      sampleRate: 采样率,
+ *      audioDataOffset: audioData开始偏移量（相对于0字节位置）,
+ *      totalSize: audioData总大小（仅当音频码率模式为VBR时返回）,
+ *      toc: 音频数据索引表（仅当音频码率模式为VBR时返回）   
  * }
  */
 define(function(require, exports, module) {
@@ -25,27 +25,27 @@ define(function(require, exports, module) {
     //MP3播放信息解析对象
     var MP3Info = {
         init: function(url, opt) {
-        	var self = this;
-        	var emptyFun = function(){};
-        	this.url = url;
-        	this.decrypt = this.loadedmetaCb = emptyFun;
-        	this.indexSize = 100; //分区数，默认100
+            var self = this;
+            var emptyFun = function(){};
+            this.url = url;
+            this.decrypt = this.loadedmetaCb = emptyFun;
+            this.indexSize = 100; //分区数，默认100
             this.audioInfo = {}; //存储mp3相关的信息
-        	if(typeof opt == 'object'){
-        		opt.decrypt && (this.decrypt = opt.decrypt);
-        		opt.loadedmetaCb && (this.loadedmetaCb = opt.loadedmetaCb);
-        		opt.indexSize && (this.indexSize = opt.indexSize);
-        	}
+            if(typeof opt == 'object'){
+                opt.decrypt && (this.decrypt = opt.decrypt);
+                opt.loadedmetaCb && (this.loadedmetaCb = opt.loadedmetaCb);
+                opt.indexSize && (this.indexSize = opt.indexSize);
+            }
             return new Promise(function(resolve, reject){
-            	self._loadHeaderInfo(resolve, reject);
+                self._loadHeaderInfo(resolve, reject);
             }).then(function(arrayBuffer){
                 if(arrayBuffer){
                     return arrayBuffer;
                 }else{
-                	return self._loadFirstFrame();
+                    return self._loadFirstFrame();
                 }
             }).then(function(arrayBuffer){
-            	var header = new Mp3Header(new bitStream(arrayBuffer));
+                var header = new Mp3Header(new bitStream(arrayBuffer));
                 var result = header.parseHeader(true);
                 if(result){
                     self.audioInfo.toc = header.toc;
@@ -72,22 +72,23 @@ define(function(require, exports, module) {
         _loadHeaderInfo: function(resolve, reject) {
             var self = this;
             requestRange(self.url, 0, 32 * 8 + 32 * 8 - 1 + 1024*200, { //多加200K，同时加载第一个数据帧
-            	onsuccess: function(request) { //加载前32个字节（判断是否存在ID3V2|Ape头，一般不会同时存在）
-	                var arrayBuffer = request.response;
-	                var contetnRange = request.getResponseHeader('Content-Range');
-	                var length = 0;
+                onsuccess: function(request) { //加载前32个字节（判断是否存在ID3V2|Ape头，一般不会同时存在）
+                    var arrayBuffer = request.response;
+                    var contetnRange = request.getResponseHeader('Content-Range');
+                    var length = 0;
                     var id3tag = null;
-	                self.decrypt(arrayBuffer); //解密
-                    id3tag = new Mp3Id3Tag(arrayBuffer);
-                    self.audioInfo.audioDataOffset = id3tag.parseId3V2() + id3tag.parseApe();
-	                self.audioInfo.fileSize = parseInt(contetnRange.substr(contetnRange.indexOf('/') + 1));
-                    if(self.audioInfo.audioDataOffset+158*8 < arrayBuffer.byteLength){ //如果包含第一恶数据帧
-                        self.audioInfo.extra = arrayBuffer.slice(self.audioInfo.audioDataOffset);
-                        resolve(arrayBuffer.slice(self.audioInfo.audioDataOffset,self.audioInfo.audioDataOffset+158*8));
-                    }else{
-                        resolve();
-                    }
-	            }
+                    self.decrypt(arrayBuffer).then(function(){
+                        id3tag = new Mp3Id3Tag(arrayBuffer);
+                        self.audioInfo.audioDataOffset = id3tag.parseId3V2() + id3tag.parseApe();
+                        self.audioInfo.fileSize = parseInt(contetnRange.substr(contetnRange.indexOf('/') + 1));
+                        if(self.audioInfo.audioDataOffset+158*8 < arrayBuffer.byteLength){ //如果包含第一恶数据帧
+                            self.audioInfo.extra = arrayBuffer.slice(self.audioInfo.audioDataOffset);
+                            resolve(arrayBuffer.slice(self.audioInfo.audioDataOffset,self.audioInfo.audioDataOffset+158*8));
+                        }else{
+                            resolve();
+                        }
+                    })
+                }
             });
         },
         //加载第一个数据帧(用来判断音频码率模式)
@@ -95,11 +96,12 @@ define(function(require, exports, module) {
             var self = this;
             return new Promise(function(resolve, reject) {
                 requestRange(self.url, self.audioInfo.audioDataOffset, self.audioInfo.audioDataOffset + 156 * 8 - 1, {
-                	onsuccess: function(request) {
+                    onsuccess: function(request) {
                         var arrayBuffer = request.response;
-	                    self.decrypt(arrayBuffer); //解密
-	                    resolve(arrayBuffer);
-	                }
+                        self.decrypt(arrayBuffer).then(function(){
+                            resolve(arrayBuffer);
+                        })
+                    }
                 })
             })
         },
@@ -112,13 +114,14 @@ define(function(require, exports, module) {
                         var arrayBuffer = request.response;
                         var id3tag = null;
                         var length = 0;
-                        self.decrypt(arrayBuffer); //解密
-                        id3tag = new Mp3Id3Tag(arrayBuffer);
-                        self.audioInfo.footerLength = id3tag.parseId3V1()+id3tag.parseApe();
-                        self.audioInfo.totalSize = self.audioInfo.fileSize - self.audioInfo.audioDataOffset - self.audioInfo.footerLength;
-                        self.audioInfo.totalTime = self.audioInfo.totalSize*8 / self.audioInfo.bitRate;
-                        self.loadedmetaCb(self.audioInfo);
-                        resolve(self.audioInfo);
+                        self.decrypt(arrayBuffer).then(function(){
+                            id3tag = new Mp3Id3Tag(arrayBuffer);
+                            self.audioInfo.footerLength = id3tag.parseId3V1()+id3tag.parseApe();
+                            self.audioInfo.totalSize = self.audioInfo.fileSize - self.audioInfo.audioDataOffset - self.audioInfo.footerLength;
+                            self.audioInfo.totalTime = self.audioInfo.totalSize*8 / self.audioInfo.bitRate;
+                            self.loadedmetaCb(self.audioInfo);
+                            resolve(self.audioInfo);
+                        })
                     }
                 })
             })
