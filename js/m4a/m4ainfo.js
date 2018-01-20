@@ -376,6 +376,7 @@ define(function(require, exports, module){
 		}
 		beginPos = this.stts.beginPos;
 		_setInt(beginPos, this.stts[beginIndex].sampleCount-(sample-tsSum-1));
+		_setInt(beginPos+4, this.stts[beginIndex].sampleDelta);
 		beginPos+=8;
 		for(var i=beginIndex+1; i<this.stts.length; i++){ //重新赋值
 			_setInt(beginPos, this.stts[i].sampleCount);
@@ -395,6 +396,12 @@ define(function(require, exports, module){
 			}
 		}
 		beginPos = this.stsc.beginPos
+		for(var j=0; j<i; j++){
+			_setInt(beginPos,this.stsc[j].firstChunk);
+			_setInt(beginPos+4,this.stsc[j].samplesPerChunk);
+			_setInt(beginPos+8,this.stsc[j].sampleDescriptionIndex);
+			beginPos+=12;
+		}
 		for(; i<this.stsc.length; i++){ //重新赋值
 			tmp = this.stsc[i].firstChunk-chunk+1;
 			_setInt(beginPos,tmp);
@@ -428,7 +435,7 @@ define(function(require, exports, module){
 		function _setInt(beginPos,value){ //赋值4位整数
 			var tmp = 0;
 			uint8Array[beginPos] = (value/(1<<24))>>0;
-			tmp = value - uint8Array[beginPos]<<24;
+			tmp = value - (uint8Array[beginPos]<<24);
 			uint8Array[beginPos+1] = (tmp/(1<<16))>>0;
 			tmp -= uint8Array[beginPos+1]<<16;
 			uint8Array[beginPos+2] = (tmp/(1<<8))>>0;

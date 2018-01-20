@@ -26,13 +26,13 @@ define(function(require, exports, module) {
             var arrayBuffer = request.response;
             var contetnRange = request.getResponseHeader('Content-Range');
 
-            if (contetnRange && contetnRange.split('/')[0].substr(6) != begin + '-' + end) {
-            	console.log(contetnRange.split('/')[0].substr(6),begin + '-' + end )
-                console.error('获取头部信息出错');
-                onerror('获取头部信息出错');
-            }else{
+            // if (contetnRange && contetnRange.split('/')[0].substr(6) != begin + '-' + end) {
+            // 	console.log(contetnRange.split('/')[0].substr(6),begin + '-' + end )
+            //     console.error('获取头部信息出错');
+            //     onerror('获取头部信息出错');
+            // }else{
             	onsuccess(request);
-            }
+            // }
         }
         request.onerror = onerror;
         request.onabort = onabort;

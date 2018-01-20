@@ -7,9 +7,34 @@
     <title>m4a音频解析</title>
     <script type="text/javascript" src="../sea.js"></script>
     <script type="text/javascript">
-    seajs.use("m4a/m4ainfo.js",function(M4A){
+    var audioContext = new(AudioContext || WebkitAudioContext)();
+    seajs.use(["m4a/m4ainfo.js","common/range"],function(M4A,range){
         new M4A('../../test/src/test.m4a').init().then(function(info){
-            info.rebuildByTime(10);
+            var offset = info.rebuildByTime(20);
+            range('../../test/src/test.m4a', 0, null, { //40K
+                onsuccess:function(request){
+                    var arrayBuffer = request.response;
+                    var buffer = new ArrayBuffer(arrayBuffer.byteLength-offset+info.meta.byteLength);
+                    var tmp = new Uint8Array(buffer);
+                    tmp.set(new Uint8Array(info.meta),0);
+                    tmp.set(new Uint8Array(arrayBuffer.slice(offset)),info.meta.byteLength);
+
+                    audioContext.decodeAudioData(buffer, function(buffer) {
+                        // 用于控制音频的播放
+                        var bufferSourceNode = audioContext.createBufferSource();
+                        // 将解码后PCM（设备可直接播放的数据流）流赋值给buffer属性
+                        bufferSourceNode.buffer = buffer;
+                        // 将播放节点连接到播放设备
+                        bufferSourceNode.connect(audioContext.destination);
+                        // 播放
+                        bufferSourceNode.start(0);
+                        var begin = new Date().getTime();
+                        bufferSourceNode.onended = function() {
+                            console.log('end', new Date().getTime() - begin);
+                        }
+                    })
+                }
+            })
         })
     });
     </script>
