@@ -10,7 +10,7 @@
     var audioContext = new(AudioContext || WebkitAudioContext)();
     seajs.use(["m4a/m4ainfo.js","common/range"],function(M4A,range){
         new M4A('../../test/src/test.m4a').init().then(function(info){
-            var offset = info.rebuildByTime(20);
+            var offset = info.rebuildByTime(50);
             range('../../test/src/test.m4a', 0, null, { //40K
                 onsuccess:function(request){
                     var arrayBuffer = request.response;

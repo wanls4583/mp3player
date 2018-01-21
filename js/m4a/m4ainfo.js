@@ -35,9 +35,11 @@ define(function(require, exports, module){
         	onsuccess: function(request) {
                var arrayBuffer = request.response;
                var size = 0;
+               var contetnRange = request.getResponseHeader('Content-Range');
                self.bitStream = new BitStream(arrayBuffer);
                size = self.checkM4a();
                self.sizes.typeSize = size;
+               self.sizes.fileSize = parseInt(contetnRange.substr(contetnRange.indexOf('/') + 1));
                if(!size){
                		reject();
                }else if(size+8<arrayBuffer.byteLength){
@@ -45,7 +47,16 @@ define(function(require, exports, module){
                		self.bitStream.reset();
                		if(arrayBuffer.byteLength >= size+moovSize){
 	               		if(self.parseInfo()){
-	               			self.meta = arrayBuffer.slice(0,size+moovSize); //保存元数据，用于重建
+	               			var meta = arrayBuffer.slice(0,size+moovSize); //保存元数据，用于重建
+	               			var tmp = null;
+	               			self.meta = new ArrayBuffer(size+moovSize+8) //多出8字节用来存储音频数据大小和mdat
+	               			tmp = new Uint8Array(self.meta);
+	               			tmp.set(new Uint8Array(meta), 0);
+	               			//设置mdat类型标识
+	               			tmp[tmp.length-4] = 0x6d;
+	               			tmp[tmp.length-3] = 0x64;
+	               			tmp[tmp.length-2] = 0x61;
+	               			tmp[tmp.length-1] = 0x74;
 		               		resolve(self);
 	               		}else{
 	               			reject();
@@ -71,7 +82,16 @@ define(function(require, exports, module){
 					var arrayBuffer = request.response;
 					self.bitStream = new BitStream(arrayBuffer);
 					if(self.parseInfo()){
-						self.meta = arrayBuffer.slice(0,size+self.sizes.typeSize);
+						var meta = arrayBuffer.slice(0,size+self.sizes.typeSize);; //保存元数据，用于重建
+               			var tmp = null;
+               			self.meta = new ArrayBuffer(size+self.sizes.typeSize+8) //多出8字节用来存储音频数据大小和mdat
+               			tmp = new Uint8Array(self.meta);
+               			tmp.set(new Uint8Array(meta), 0);
+               			//设置mdat类型标识
+               			tmp[tmp.length-4] = 0x6d;
+               			tmp[tmp.length-3] = 0x64;
+               			tmp[tmp.length-2] = 0x61;
+               			tmp[tmp.length-1] = 0x74;
 						resolve(self);
 					}else{
 						reject();
@@ -318,14 +338,16 @@ define(function(require, exports, module){
 	 */
 	_proto_.rebuildByTime = function(seconds){
 		var time = seconds*this.mdhd.timescale;
-		var tsSum=0,scSum=0,preScSum=0,coSum=0,cIndex=0,sample,chunk,offset,beginPos,beginIndex,tmp;
+		var tsSum=0,preTsSum=0,scSum=0,preScSum=0,coSum=0,cIndex=0,sample,chunk,offset,beginPos,beginIndex,tmp;
 		var uint8Array = new Uint8Array(this.meta);
+		var newStsc = [], newStsz=[], newStco=[];
 		//time->sample
 		for(var i=0; i<this.stts.length; i++){
 			tsSum+=this.stts[i].sampleDelta*this.stts[i].sampleCount;
 			if(time<tsSum){
-				sample = Math.ceil(time/this.stts[i].sampleDelta);
+				sample = preTsSum+Math.ceil((time-preTsSum)/this.stts[i].sampleDelta);
 			}
+			preTsSum = tsSum;
 		}
 		if(!sample){
 			time = tsSum;
@@ -347,9 +369,9 @@ define(function(require, exports, module){
 		//chunk->offset
 		offset = this.stco[chunk-1];
 		var ciSample,sbegin;
-		ciSample = (sample-preScSum)%this.stsc[cIndex].samplesPerChunk-1;
-		sbegin = sample-ciSample;
-		for(var i=0; i<ciSample; i++){
+		ciSample = (sample-preScSum)%this.stsc[cIndex].samplesPerChunk;
+		sbegin = sample-ciSample+1;
+		for(var i=0; i<ciSample-1; i++){
 			if(this.stsz.length){
 				offset+=this.stsz[sbegin+i-1];
 			}else{
@@ -396,11 +418,16 @@ define(function(require, exports, module){
 			}
 		}
 		beginPos = this.stsc.beginPos
-		for(var j=0; j<i; j++){
+		for(var j=0; j<i; j++){ //重新赋值
 			_setInt(beginPos,this.stsc[j].firstChunk);
 			_setInt(beginPos+4,this.stsc[j].samplesPerChunk);
 			_setInt(beginPos+8,this.stsc[j].sampleDescriptionIndex);
 			beginPos+=12;
+			newStsc[newStsc.length] = {
+				firstChunk: this.stsc[j].firstChunk,
+				samplesPerChunk: this.stsc[j].samplesPerChunk,
+				sampleDescriptionIndex: this.stsc[j].sampleDescriptionIndex
+			}
 		}
 		for(; i<this.stsc.length; i++){ //重新赋值
 			tmp = this.stsc[i].firstChunk-chunk+1;
@@ -408,12 +435,18 @@ define(function(require, exports, module){
 			_setInt(beginPos+4,this.stsc[i].samplesPerChunk);
 			_setInt(beginPos+8,this.stsc[i].sampleDescriptionIndex);
 			beginPos+=12;
+			newStsc[newStsc.length] = {
+				firstChunk: tmp,
+				samplesPerChunk: this.stsc[i].samplesPerChunk,
+				sampleDescriptionIndex: this.stsc[i].sampleDescriptionIndex
+			}
 		}
 		//rebuild-stsz
 		beginPos = this.stsz.beginPos;
 		for(var i=0; i<this.stsz.length-(sample-1); i++){ //重新赋值
 			_setInt(beginPos,this.stsz[i+sample-1]);
 			beginPos+=4;
+			newStsz[newStsz.length] = this.stsz[i+sample-1];
 		}
 		for(; i<this.stsz.length; i++){ //清空尾部多余数据
 			_clearInt(beginPos);
@@ -421,16 +454,31 @@ define(function(require, exports, module){
 		}
 		//rebuild-stco
 		beginPos = this.stco.beginPos;
-		tmp = offset-this.stco[0];
-		for(var i=0; i<this.stco.length-(chunk-1); i++){ //重新赋值
-			_setInt(beginPos,this.stco[i]+tmp);
-			beginPos+=4;
-		}
-		tmp = this.stco[i-1]+tmp;
-		for(; i<this.stco.length; i++){ //尾部多余的项
+		var samples = 0, preSamples=0;
+		cIndex = 0;
+		tmp = this.meta.byteLength;
+		for(var i=1; i<=this.stco.length-(chunk-1); i++){ //重新赋值
 			_setInt(beginPos,tmp);
+			newStco[newStco.length] = tmp;
 			beginPos+=4;
+			preSamples = samples;
+			if(cIndex==newStsc.length-1 || i+1<=(newStsc[cIndex+1].firstChunk-1)*newStsc[cIndex].samplesPerChunk){
+				samples+=newStsc[cIndex].samplesPerChunk;
+			}else{
+				cIndex++;
+				samples+=newStsc[cIndex].samplesPerChunk;
+			}
+			if(i==this.stco.length-(chunk-1)){
+				break;
+			}else{
+				for(; preSamples<samples; preSamples++){
+					tmp+=newStsz[preSamples];
+				}
+			}
 		}
+
+		//设置音频数据大小
+		_setInt(this.meta.byteLength-8, this.sizes.fileSize);
 
 		function _setInt(beginPos,value){ //赋值4位整数
 			var tmp = 0;
