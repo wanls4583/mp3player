@@ -371,7 +371,7 @@ define(function(require, exports, module){
 	 * @param  {number} seconds 秒
 	 * @return {number}         sample序号
 	 */
-	_proto_.getSampleBySecond = function(seconds){
+	_proto_.getSampleBySecond = function(seconds, extra){
 		var time = seconds*this.mdhd.timescale;
 		var sample=0, tsSum=0, preTsSum=0;
 		for(var i=0; i<this.stts.length; i++){
@@ -384,6 +384,13 @@ define(function(require, exports, module){
 		if(!sample){
 			sample = 1;
 		}
+		extra = extra||0;
+		sample += extra;
+		if(sample > this.samples.length){
+			sample = this.samples.length
+		}else if(sample < 1){
+			sample = 1;
+		}
 		return sample;
 	}
 	/**
@@ -391,21 +398,21 @@ define(function(require, exports, module){
 	 * @param  {number} seconds 秒
 	 * @return {number}         偏移量
 	 */
-	_proto_.getOffsetBySecond = function(seconds){
-		var sample = this.getSampleBySecond(seconds); 
+	_proto_.getOffsetBySecond = function(seconds, extra){
+		var sample = this.getSampleBySecond(seconds, extra); 
 		return this.samples[sample-1].offset;
 	}
 	/**
 	 * 根据时间重建moov-box
 	 * @return {number} 偏移量
 	 */
-	_proto_.rebuildByTime = function(seconds,size){
+	_proto_.rebuildByTime = function(seconds,extra,size){
 		
 		var scSum=0,coSum=0,sample,chunk,offset,beginPos;
 		var uint8Array = new Uint8Array(this.meta);
 		var newStsc = [], newStsz=[], newStco=[];
 		
-		sample = this.getSampleBySecond(seconds);
+		sample = this.getSampleBySecond(seconds,extra);
 		offset = this.samples[sample-1].offset;
 		chunk = this.samples[sample-1].chunkIndex + 1;
 
