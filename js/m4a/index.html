@@ -60,7 +60,7 @@
         var end = info.getOffsetBySecond(_end);
         var buffer = new ArrayBuffer(end-offset+1+info.meta.byteLength);
         var tmp = new Uint8Array(buffer);
-        info.rebuildByTime(_offset, end-offset+1);
+        info.rebuildByTime(_offset, end-offset+1+8);
         tmp.set(new Uint8Array(info.meta),0);
         tmp.set(new Uint8Array(arrayBuffer).slice(offset,end),info.meta.byteLength);
 
