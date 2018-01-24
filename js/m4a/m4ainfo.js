@@ -330,7 +330,41 @@ define(function(require, exports, module){
 		if(!this.parseStbl()){
 			return false;
 		}
+		//初始化samples
+		this.initStblInfo();
+
 		return true;
+	}
+	/**
+	 * 构建sample->offset映射，方便快速根据sample定位到偏移量
+	 * @return {[type]} [description]
+	 */
+	_proto_.initStblInfo = function(){
+		var sampleIndex = 0;
+		var chunks = new Array(this.stco.length); //chunk数组，每个元素保存该chunk对应的sample个数
+		this.samples = new Array(this.stsz.length); //sample数组，每个元素保存了对应的chunk索引,chunk内sample索引,在整个文件的偏移量
+
+		for(var i=0; i<this.stsc.length; i++){
+			var firstChunk = this.stsc[i].firstChunk;
+			var samplesPerChunk = this.stsc[i].samplesPerChunk;
+			for(var j=firstChunk; j<=chunks.length; j++){
+				chunks[j-1] = samplesPerChunk;
+			}
+		}
+
+		for(var i=0; i<chunks.length; i++){
+			var samplesPerChunk = chunks[i];
+			var offset = this.stco[i];
+			for(var j=0; j<samplesPerChunk; j++){
+				var obj = {};
+				obj.chunkIndex = i;
+				obj.innerIndex = j;
+				obj.offset = offset;
+				this.samples[sampleIndex] = obj;
+				offset += this.stsz[sampleIndex];
+				sampleIndex++;
+			}
+		}
 	}
 	/**
 	 * 根据时间重建moov-box
@@ -352,33 +386,9 @@ define(function(require, exports, module){
 		if(!sample){
 			time = tsSum;
 		}
-		//sample->chunk
-		for(var i=0; i<this.stsc.length-1; i++){
-			scSum+=(this.stsc[i+1].firstChunk-1)*this.stsc[i].samplesPerChunk;
-			if(sample<=scSum){
-				cIndex = i;
-				chunk = this.stsc[i].firstChunk+Math.floor((sample-preScSum)/this.stsc[i].samplesPerChunk);
-				break;
-			}
-			preScSum = scSum;
-		}
-		if(!chunk){
-			cIndex = i;
-			chunk = this.stsc[i].firstChunk+Math.floor((sample-preScSum)/this.stsc[i].samplesPerChunk);
-		}
-		//chunk->offset
-		offset = this.stco[chunk-1];
-		var ciSample,sbegin;
-		ciSample = (sample-preScSum)%this.stsc[cIndex].samplesPerChunk;
-		sbegin = sample-ciSample+1;
-		for(var i=0; i<ciSample-1; i++){
-			if(this.stsz.length){
-				offset+=this.stsz[sbegin+i-1];
-			}else{
-				offset+=this.stsz.sampleSize;
-			}
-		}
-
+		offset = this.samples[sample-1].offset;
+		chunk = this.samples[sample-1].chunkIndex + 1;
+		
 		//rebuild
 		
 		//rebuild-stts
