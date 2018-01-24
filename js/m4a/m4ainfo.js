@@ -413,6 +413,7 @@ define(function(require, exports, module){
 		beginPos = this.stts.beginPos;
 		for(var i=0; i<this.stts.length; i++){ //清零
 			_clearInt(beginPos);
+			_clearInt(beginPos+4);
 			beginPos+=8
 		}
 		
