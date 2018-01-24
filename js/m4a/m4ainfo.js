@@ -341,19 +341,19 @@ define(function(require, exports, module){
 	 */
 	_proto_.initStblInfo = function(){
 		var sampleIndex = 0;
-		var chunks = new Array(this.stco.length); //chunk数组，每个元素保存该chunk对应的sample个数
+		this.chunks = new Array(this.stco.length); //chunk数组，每个元素保存该chunk对应的sample个数
 		this.samples = new Array(this.stsz.length); //sample数组，每个元素保存了对应的chunk索引,chunk内sample索引,在整个文件的偏移量
 
 		for(var i=0; i<this.stsc.length; i++){
 			var firstChunk = this.stsc[i].firstChunk;
 			var samplesPerChunk = this.stsc[i].samplesPerChunk;
-			for(var j=firstChunk; j<=chunks.length; j++){
-				chunks[j-1] = samplesPerChunk;
+			for(var j=firstChunk; j<=this.chunks.length; j++){
+				this.chunks[j-1] = samplesPerChunk;
 			}
 		}
 
-		for(var i=0; i<chunks.length; i++){
-			var samplesPerChunk = chunks[i];
+		for(var i=0; i<this.chunks.length; i++){
+			var samplesPerChunk = this.chunks[i];
 			var offset = this.stco[i];
 			for(var j=0; j<samplesPerChunk; j++){
 				var obj = {};
@@ -429,26 +429,17 @@ define(function(require, exports, module){
 		}
 
 		//rebuild-stco
-		var samples = 0, preSamples=0, cIndex = 0, tmp;
+		var sampleIndex = 0, tmp;
 		beginPos = this.stco.beginPos;
 		tmp = this.meta.byteLength;
-		for(var i=1; i<=this.stco.length-(chunk-1); i++){ //重新赋值
+		for(var i=1; i<=this.stco.length; i++){ //重新赋值
 			_setInt(beginPos,tmp);
 			newStco[newStco.length] = tmp;
 			beginPos+=4;
-			preSamples = samples;
-			if(cIndex==this.stsc.length-1 || i+1<=(this.stsc[cIndex+1].firstChunk-1)*this.stsc[cIndex].samplesPerChunk){
-				samples+=this.stsc[cIndex].samplesPerChunk;
-			}else{
-				cIndex++;
-				samples+=newStsc[cIndex].samplesPerChunk;
-			}
-			if(i==this.stco.length-(chunk-1)){
-				break;
-			}else{
-				for(; preSamples<samples; preSamples++){
-					tmp+=newStsz[preSamples];
-				}
+			
+			for(var j=0; j<this.chunks[i]; j++){
+				tmp += newStsz[sampleIndex];
+				sampleIndex++;
 			}
 		}
 
