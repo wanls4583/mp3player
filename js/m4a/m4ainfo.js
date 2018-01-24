@@ -367,15 +367,13 @@ define(function(require, exports, module){
 		}
 	}
 	/**
-	 * 根据时间重建moov-box
-	 * @return {number} 偏移量
+	 * 根据时间获取sample序号
+	 * @param  {number} seconds 秒
+	 * @return {number}         sample序号
 	 */
-	_proto_.rebuildByTime = function(seconds){
+	_proto_.getSampleBySecond = function(seconds){
 		var time = seconds*this.mdhd.timescale;
-		var tsSum=0,preTsSum=0,scSum=0,preScSum=0,coSum=0,cIndex=0,sample,chunk,offset,beginPos,beginIndex,tmp;
-		var uint8Array = new Uint8Array(this.meta);
-		var newStsc = [], newStsz=[], newStco=[];
-		//time->sample
+		var sample=0, tsSum=0, preTsSum=0;
 		for(var i=0; i<this.stts.length; i++){
 			tsSum+=this.stts[i].sampleDelta*this.stts[i].sampleCount;
 			if(time<tsSum){
@@ -384,73 +382,40 @@ define(function(require, exports, module){
 			preTsSum = tsSum;
 		}
 		if(!sample){
-			time = tsSum;
+			sample = 1;
 		}
+		return sample;
+	}
+	/**
+	 * 根据时间获取偏移量
+	 * @param  {number} seconds 秒
+	 * @return {number}         偏移量
+	 */
+	_proto_.getOffsetBySecond = function(seconds){
+		var sample = this.getSampleBySecond(seconds); 
+		return this.samples[sample-1].offset;
+	}
+	/**
+	 * 根据时间重建moov-box
+	 * @return {number} 偏移量
+	 */
+	_proto_.rebuildByTime = function(seconds,size){
+		
+		var scSum=0,coSum=0,sample,chunk,offset,beginPos;
+		var uint8Array = new Uint8Array(this.meta);
+		var newStsc = [], newStsz=[], newStco=[];
+		
+		sample = this.getSampleBySecond(seconds);
 		offset = this.samples[sample-1].offset;
 		chunk = this.samples[sample-1].chunkIndex + 1;
-		
-		//rebuild
-		
+
 		//rebuild-stts
 		beginPos = this.stts.beginPos;
-		beginIndex=0;
-		tsSum=0;
 		for(var i=0; i<this.stts.length; i++){ //清零
 			_clearInt(beginPos);
 			beginPos+=8
 		}
-		for(var i=0; i<this.stts.length; i++){
-			if(tsSum+this.stts[i].sampleCount >= sample){
-				beginIndex = i;
-				break;
-			}
-			tsSum+=this.stts[i].sampleCount;
-		}
-		beginPos = this.stts.beginPos;
-		_setInt(beginPos, this.stts[beginIndex].sampleCount-(sample-tsSum-1));
-		_setInt(beginPos+4, this.stts[beginIndex].sampleDelta);
-		beginPos+=8;
-		for(var i=beginIndex+1; i<this.stts.length; i++){ //重新赋值
-			_setInt(beginPos, this.stts[i].sampleCount);
-			_setInt(beginPos+4, this.stts[i].sampleDelta);
-			beginPos+=8;
-		}
-		//rebuild-stsc
-		var beginPos = this.stsc.beginPos;
-		for(var i=0; i<this.stsc.length; i++){ //清零
-			_clearInt(beginPos);
-			beginPos+=12;
-		}
-		for(var i=0; i<this.stsc.length-1; i++){
-			if(this.stsc[i+1].firstChunk-1 >= chunk){
-				i++;
-				break;
-			}
-		}
-		beginPos = this.stsc.beginPos
-		for(var j=0; j<i; j++){ //重新赋值
-			_setInt(beginPos,this.stsc[j].firstChunk);
-			_setInt(beginPos+4,this.stsc[j].samplesPerChunk);
-			_setInt(beginPos+8,this.stsc[j].sampleDescriptionIndex);
-			beginPos+=12;
-			newStsc[newStsc.length] = {
-				firstChunk: this.stsc[j].firstChunk,
-				samplesPerChunk: this.stsc[j].samplesPerChunk,
-				sampleDescriptionIndex: this.stsc[j].sampleDescriptionIndex
-			}
-		}
-		for(; i<this.stsc.length; i++){ //重新赋值
-			tmp = this.stsc[i].firstChunk-chunk+1;
-			_setInt(beginPos,tmp);
-			_setInt(beginPos+4,this.stsc[i].samplesPerChunk);
-			_setInt(beginPos+8,this.stsc[i].sampleDescriptionIndex);
-			beginPos+=12;
-			newStsc[newStsc.length] = {
-				firstChunk: tmp,
-				samplesPerChunk: this.stsc[i].samplesPerChunk,
-				sampleDescriptionIndex: this.stsc[i].sampleDescriptionIndex
-			}
-		}
+		
 		//rebuild-stsz
 		beginPos = this.stsz.beginPos;
 		for(var i=0; i<this.stsz.length-(sample-1); i++){ //重新赋值
@@ -462,18 +427,18 @@ define(function(require, exports, module){
 			_clearInt(beginPos);
 			beginPos+=4;
 		}
+
 		//rebuild-stco
+		var samples = 0, preSamples=0, cIndex = 0, tmp;
 		beginPos = this.stco.beginPos;
-		var samples = 0, preSamples=0;
-		cIndex = 0;
 		tmp = this.meta.byteLength;
 		for(var i=1; i<=this.stco.length-(chunk-1); i++){ //重新赋值
 			_setInt(beginPos,tmp);
 			newStco[newStco.length] = tmp;
 			beginPos+=4;
 			preSamples = samples;
-			if(cIndex==newStsc.length-1 || i+1<=(newStsc[cIndex+1].firstChunk-1)*newStsc[cIndex].samplesPerChunk){
-				samples+=newStsc[cIndex].samplesPerChunk;
+			if(cIndex==this.stsc.length-1 || i+1<=(this.stsc[cIndex+1].firstChunk-1)*this.stsc[cIndex].samplesPerChunk){
+				samples+=this.stsc[cIndex].samplesPerChunk;
 			}else{
 				cIndex++;
 				samples+=newStsc[cIndex].samplesPerChunk;
@@ -488,7 +453,7 @@ define(function(require, exports, module){
 		}
 
 		//设置音频数据大小
-		_setInt(this.meta.byteLength-8, this.sizes.fileSize);
+		_setInt(this.meta.byteLength-8, size);
 
 		function _setInt(beginPos,value){ //赋值4位整数
 			var tmp = 0;
