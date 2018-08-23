@@ -85,7 +85,7 @@ define(function(require, exports, module) {
                         var decodeBeginTime = new Date().getTime();
                     }
                     self.audioContext.decodeAudioData(result.arrayBuffer, function(buffer) { //使用旧版回调，调试时将有可能被阻塞而不执行回调
-                        var offlineCtx = new OfflineAudioContext(2, 44100 * buffer.duration, 44100);
+                        var offlineCtx = new OfflineAudioContext(2, self.audioInfo.sampleRate * buffer.duration, self.audioInfo.sampleRate);
                         var myBuffer = buffer;
                         var source = offlineCtx.createBufferSource();
                         source.buffer = myBuffer;
