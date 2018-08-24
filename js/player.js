@@ -178,19 +178,33 @@ define(function(require, exports, module) {
                 if (this.audioInfo.toc) { //vbr格式的音频每一帧一般不相互依赖
                     delLength = sampleSize * 3;
                 }
+
+                //寻找一个平滑过渡点
+                // var endPoint = this.totalBuffer.getChannelData(0)[offset - 1];
+                // var tmp = _buffer.getChannelData(0);
+                // for (var i = 0; i < sampleSize*10; i++) {
+                //     if (Math.abs(endPoint - tmp[i + delLength - 1]) < 0.001) {
+                //         delLength = i + delLength;
+                //         console.log('smooth', i);
+                //         break;
+                //     }
+                // }
+
                 for (var i = 0; i < _buffer.numberOfChannels; i++) {
                     var cData = _buffer.getChannelData(i).slice(delLength);
                     if (cData.length + offset > this.totalBuffer.length) {
-                        cData = cData(0, cData.length + offset - this.totalBuffer.length);
+                        cData = cData.slice(0, cData.length + offset - this.totalBuffer.length);
                     }
                     this.totalBuffer.getChannelData(i).set(cData, offset);
                 }
                 this.totalBuffer.dataEnd = offset + _buffer.length - delLength;
+
+                //展示前后衔接处波形图，帮助分析
                 if (this.preBuffer) {
                     var d1 = this.preBuffer.getChannelData(0).slice(-delLength);
                     var d2 = _buffer.getChannelData(0).slice(0, delLength);
                     var ctx = document.querySelector('#canvas').getContext("2d");
-                    ctx.clearRect(0,0,delLength,200);
+                    ctx.clearRect(0, 0, delLength, 200);
                     ctx.beginPath();
                     ctx.moveTo(0, 50);
                     for (var i = 0; i < d1.length; i++) {
@@ -208,6 +222,7 @@ define(function(require, exports, module) {
                     }
                     ctx.stroke();
                     ctx.closePath();
+                    // console.log(d1[delLength - 1] - d2[delLength - 1]);
                 }
                 this.preBuffer = _buffer;
             },
