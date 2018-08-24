@@ -91,10 +91,10 @@ define(function(require, exports, module) {
                         source.buffer = myBuffer;
                         source.connect(offlineCtx.destination);
                         source.start();
+                        //将采样率转换为音频原本的采样率，便于音频断点处理
                         offlineCtx.startRendering().then(function(renderedBuffer) {
                             _renderCb(renderedBuffer);
                             // console.log('渲染成功');
-
                         }).catch(function(err) {
                             console.log('渲染失败: ' + err);
                         });
@@ -173,10 +173,17 @@ define(function(require, exports, module) {
             //复制PCM流
             _copyPCMData: function(_buffer) {
                 var offset = this.totalBuffer.dataOffset;
-                var sampleSize = 1152;
-                var delLength = sampleSize; // 需要删除的断点损坏数据长度
+                var sampleSize = 1152; //mp3一帧有1152个采样点
+                var delLength = sampleSize*2; //头部需要删除多余的采样点 (cbr格式的音频通常每一帧通常会依赖上一帧的数据)
+                if(this.audioInfo.toc){ //vbr格式的音频每一帧一般不相互依赖
+                    delLength = sampleSize*3;
+                }
                 for (var i = 0; i < _buffer.numberOfChannels; i++) {
-                    this.totalBuffer.getChannelData(i).set(_buffer.getChannelData(i).slice(delLength), offset);
+                    var cData = _buffer.getChannelData(i).slice(delLength);
+                    if(cData.length + offset > this.totalBuffer.length){
+                        cData = cData(0, cData.length + offset - this.totalBuffer.length);
+                    }
+                    this.totalBuffer.getChannelData(i).set(cData, offset);
                 }
                 this.totalBuffer.dataEnd = offset + _buffer.length - delLength;
             },
@@ -403,7 +410,7 @@ define(function(require, exports, module) {
                     }
                 }
                 //删除尾部损坏数据
-                result = this._fixFileBlock(result, index, endIndex, false, false, 0, 3);
+                result = this._fixFileBlock(result, index, endIndex, false, false, 0, 4);
                 if (Util.ifTest()) {
                     var tmp = new Uint8Array(result);
                     if (tmp.length > 0) {

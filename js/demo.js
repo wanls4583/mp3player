@@ -3,12 +3,6 @@ define(function(require, exports, module) {
     var MP3Info = require('./mp3/mp3info');
     var Player = require('./player');
     var Util = require('./common/util');
-    // MP3InfoAnalysis.init('//file.qf.56.com/f/h5/style/common/audio/demo/test.mp3').then(function(audioInfo){
-    // 	console.log(audioInfo);
-    // });
-    // new Player('//file.qf.56.com/f/h5/style/common/audio/demo/test.mp3', {
-    //     audioInfoAnalysis: MP3InfoAnalysis
-    // });
     var totalTime = 0;
     var myRange = document.getElementById("myRange");
     var mp3 = new Player('./src/test1.mp3', {
