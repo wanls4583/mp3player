@@ -174,18 +174,42 @@ define(function(require, exports, module) {
             _copyPCMData: function(_buffer) {
                 var offset = this.totalBuffer.dataOffset;
                 var sampleSize = 1152; //mp3一帧有1152个采样点
-                var delLength = sampleSize*2; //头部需要删除多余的采样点 (cbr格式的音频通常每一帧通常会依赖上一帧的数据)
-                if(this.audioInfo.toc){ //vbr格式的音频每一帧一般不相互依赖
-                    delLength = sampleSize*3;
+                var delLength = sampleSize * 2; //头部需要删除多余的采样点 (cbr格式的音频通常每一帧通常会依赖上一帧的数据)
+                if (this.audioInfo.toc) { //vbr格式的音频每一帧一般不相互依赖
+                    delLength = sampleSize * 3;
                 }
                 for (var i = 0; i < _buffer.numberOfChannels; i++) {
                     var cData = _buffer.getChannelData(i).slice(delLength);
-                    if(cData.length + offset > this.totalBuffer.length){
+                    if (cData.length + offset > this.totalBuffer.length) {
                         cData = cData(0, cData.length + offset - this.totalBuffer.length);
                     }
                     this.totalBuffer.getChannelData(i).set(cData, offset);
                 }
                 this.totalBuffer.dataEnd = offset + _buffer.length - delLength;
+                if (this.preBuffer) {
+                    var d1 = this.preBuffer.getChannelData(0).slice(-delLength);
+                    var d2 = _buffer.getChannelData(0).slice(0, delLength);
+                    var ctx = document.querySelector('#canvas').getContext("2d");
+                    ctx.clearRect(0,0,delLength,200);
+                    ctx.beginPath();
+                    ctx.moveTo(0, 50);
+                    for (var i = 0; i < d1.length; i++) {
+                        var h = d1[i] * 50 + 50;
+                        ctx.lineTo(i, h);
+                    }
+                    ctx.stroke();
+                    ctx.closePath();
+
+                    ctx.beginPath();
+                    ctx.moveTo(0, 150);
+                    for (var i = 0; i < d2.length; i++) {
+                        var h = d2[i] * 50 + 150;
+                        ctx.lineTo(i, h);
+                    }
+                    ctx.stroke();
+                    ctx.closePath();
+                }
+                this.preBuffer = _buffer;
             },
             //播放
             _play: function(startTime) {
