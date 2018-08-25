@@ -7,6 +7,7 @@ define(function(require, exports, module) {
 
     var requestRange = require('./common/range');
     var Util = require('./common/util');
+    var BitStream = require('./common/bitstream');
 
     function Mp3Player(_url, opt) {
         var indexSize = 100; //区块个数（根据时间平均分为100份,默认100）
@@ -174,18 +175,16 @@ define(function(require, exports, module) {
             _copyPCMData: function(_buffer) {
                 var offset = this.totalBuffer.dataOffset;
                 var sampleSize = 1152; //mp3一帧有1152个采样点
-                var delLength = sampleSize * 2; //头部需要删除多余的采样点 (cbr格式的音频通常每一帧通常会依赖上一帧的数据)
-                if (this.audioInfo.toc) { //vbr格式的音频每一帧一般不相互依赖
-                    delLength = sampleSize * 3;
-                }
+                var delLength = sampleSize/2;
 
-                //寻找一个平滑过渡点
-                // var endPoint = this.totalBuffer.getChannelData(0)[offset - 1];
-                // var tmp = _buffer.getChannelData(0);
-                // for (var i = 0; i < sampleSize*10; i++) {
-                //     if (Math.abs(endPoint - tmp[i + delLength - 1]) < 0.001) {
-                //         delLength = i + delLength;
-                //         console.log('smooth', i);
+                // var cData = _buffer.getChannelData(0);
+                // for (var i = 0; i < sampleSize; i++) {
+                //     if (!cData[i]) {
+                //         delLength++;
+                //     } else {
+                //         for (var j = 0; j < sampleSize / 4; j++) {
+                //             delLength++;
+                //         }
                 //         break;
                 //     }
                 // }
@@ -201,28 +200,29 @@ define(function(require, exports, module) {
 
                 //展示前后衔接处波形图，帮助分析
                 if (this.preBuffer) {
-                    var d1 = this.preBuffer.getChannelData(0).slice(-delLength);
-                    var d2 = _buffer.getChannelData(0).slice(0, delLength);
+                    var d1 = this.preBuffer.getChannelData(0).slice(-delLength * 2);
+                    var d2 = _buffer.getChannelData(0).slice(delLength, delLength * 3);
                     var ctx = document.querySelector('#canvas').getContext("2d");
-                    ctx.clearRect(0, 0, delLength, 200);
+                    ctx.clearRect(0, 0, ctx.canvas.width, 200);
                     ctx.beginPath();
                     ctx.moveTo(0, 50);
                     for (var i = 0; i < d1.length; i++) {
-                        var h = d1[i] * 50 + 50;
+                        var h = d1[i] * 100 + 50;
                         ctx.lineTo(i, h);
                     }
+                    ctx.strokeStyle = 'blue';
                     ctx.stroke();
                     ctx.closePath();
 
                     ctx.beginPath();
-                    ctx.moveTo(0, 150);
+                    ctx.moveTo(d1.length, 50);
                     for (var i = 0; i < d2.length; i++) {
-                        var h = d2[i] * 50 + 150;
-                        ctx.lineTo(i, h);
+                        var h = d2[i] * 100 + 50;
+                        ctx.lineTo(i + d1.length, h);
                     }
+                    ctx.strokeStyle = 'red';
                     ctx.stroke();
                     ctx.closePath();
-                    // console.log(d1[delLength - 1] - d2[delLength - 1]);
                 }
                 this.preBuffer = _buffer;
             },
@@ -449,7 +449,7 @@ define(function(require, exports, module) {
                     }
                 }
                 //删除尾部损坏数据
-                result = this._fixFileBlock(result, index, endIndex, false, false, 0, 4);
+                result = this._fixFileBlock(result, index, endIndex, false, false, 0);
                 if (Util.ifTest()) {
                     var tmp = new Uint8Array(result);
                     if (tmp.length > 0) {
@@ -476,7 +476,7 @@ define(function(require, exports, module) {
                     endIndex: endIndex
                 }
             },
-            //根据索引号，找到实际的字节位置
+            //根据索引号，找到实际的音频数据字节位置
             _getRangeBeginByIndex: function(index) {
                 var begin = 0;
                 var audioInfo = this.audioInfo;
@@ -494,10 +494,20 @@ define(function(require, exports, module) {
                 }
                 return begin;
             },
-            //修复数据块头尾损坏数据（分割后，头部数据可能不是数据帧的帧头开始，需要修复）
-            _fixFileBlock: function(arrayBuffer, beginIndex, endIndex, excludeBegin, excludeEnd, offset, endFrameSize) {
-                endFrameSize = endFrameSize || 1;
-                offset = offset || 0;
+            /**
+             * 修复数据块头尾损坏数据（分割后，头部数据可能不是数据帧的帧头开始，需要修复）
+             * @param  {ArrayBuffer} arrayBuffer  源数据
+             * @param  {Number}      beginIndex   需要修复的数据块所有
+             * @param  {Number}      endIndex     上一个最近的已修复的数据块索引
+             * @param  {Boolean}     excludeBegin 是否放弃修复头部
+             * @param  {Boolean}     excludeEnd   是否放弃修复尾部
+             * @param  {Number}      offset       开始修复头部的起始位置
+             * @return {ArrayBuffer}              修复后的数据
+             */
+            _fixFileBlock: function(arrayBuffer, beginIndex, endIndex, excludeBegin, excludeEnd, offset) {
+                var endFrameSize = 2,
+                    offset = offset || 0,
+                    self = this;
                 var result = arrayBuffer;
                 if (!excludeBegin) { //从头部开始
                     var begeinExtraLength = Util.getLengthByFrameSync(arrayBuffer, this.audioInfo.frameSync, offset);
@@ -507,6 +517,7 @@ define(function(require, exports, module) {
                         var uint8Array = new Uint8Array(newResult);
                         uint8Array.set(new Uint8Array(rightDeledData), 0);
                         uint8Array.set(new Uint8Array(result), rightDeledData.byteLength);
+                        // _clearFristFrame(newResult);
                         result = newResult;
                     } else if (begeinExtraLength) {
                         //删除头部不完整数据
@@ -514,7 +525,7 @@ define(function(require, exports, module) {
                     }
                 }
                 if (!excludeEnd) { //从尾部开始
-                    var endExtraLength = Util.getLengthByFrameSync(arrayBuffer, this.audioInfo.frameSync, null, true);
+                    var endExtraLength = Util.getLengthByFrameSync(arrayBuffer, this.audioInfo.frameSync, null, true, 1);
                     var originResult = result;
                     if (endExtraLength) { //删除尾部不完整数据
                         result = result.slice(0, result.byteLength - endExtraLength);
@@ -524,8 +535,22 @@ define(function(require, exports, module) {
                         this.fileBlocks[endIndex].rightDeledData = originResult.slice(originResult.byteLength - endExtraLength);
                     }
                 }
-                return result;
+                //清除第一帧多余数据，值保留 reservoir bit
+                // function _clearFristFrame(arrayBuffer) {
+                //     var begeinExtraLength = Util.getLengthByFrameSync(arrayBuffer, self.audioInfo.frameSync, 11);
+                //     var bitstream = new BitStream(arrayBuffer.slice(endExtraLength));
+                //     var m_b_l = 0; //主数据负偏移量
+                //     bitstream.skipBits(32);
+                //     m_b_l = bitstream.getBits(9);
 
+                //     var uint8Array = new Uint8Array(arrayBuffer);
+                //     uint8Array[0] = 255;
+                //     uint8Array[1] = 7 << 5
+                //     for (var i = 2; i < begeinExtraLength - m_b_l; i++) {
+                //         uint8Array[i] = 0;
+                //     }
+                // }
+                return result;
             },
             //跳转某个索引
             _seek: function(index) {

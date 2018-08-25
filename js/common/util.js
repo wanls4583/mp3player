@@ -26,7 +26,7 @@ define(function(require, exports, module) {
         var bufferStr = '';
         var uint8Array = new Uint8Array(arrayBuffer);
         offset = offset || 0;
-        frameSize = frameSize || 0;
+        frameSize = frameSize || 1;
         if (!reverse) {
             while (true) {
                 for (; i < count && i < uint8Array.length; i++) {
