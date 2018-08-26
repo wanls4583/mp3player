@@ -5,7 +5,7 @@ define(function(require, exports, module) {
     var Util = require('./common/util');
     var totalTime = 0;
     var myRange = document.getElementById("myRange");
-    var mp3 = new Player('./res/cbr.mp3', {
+    var mp3 = new Player('./res/test.mp3', {
         emptyUrl: './res/empty.mp3',
         AudioInfo: MP3Info,
         loadedmetaCb: function(info) {

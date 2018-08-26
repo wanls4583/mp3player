@@ -22,7 +22,7 @@ define(function(require, exports, module) {
         var waitingCb = emptyCb; //等待回调
         var playingCb = emptyCb; //等待结束回调
         var endCb = emptyCb; //播放结束回调
-        var errorCb = errorCb; //错误回调
+        var errorCb = emptyCb; //错误回调
         var maxDecodeSize = 0.1 * 1024 * 1024; // 最大解码字节长度(默认8M)
         var isIos = navigator.userAgent.indexOf('iPhone') > -1;
         var AudioInfo = null;
@@ -47,6 +47,7 @@ define(function(require, exports, module) {
                     }
 
                 }
+                this.decoder = new Mad.Decoder();
                 this.fileBlocks = new Array(100); //音频数据分区
                 this.cacheFrameSize = 0; //每次加载的分区数
                 this.indexSize = 100; //索引个数
@@ -85,80 +86,70 @@ define(function(require, exports, module) {
                     if (Util.ifDebug()) {
                         var decodeBeginTime = new Date().getTime();
                     }
-                    self.audioContext.decodeAudioData(result.arrayBuffer, function(buffer) { //使用旧版回调，调试时将有可能被阻塞而不执行回调
-                        var offlineCtx = new OfflineAudioContext(2, self.audioInfo.sampleRate * buffer.duration, self.audioInfo.sampleRate);
-                        var myBuffer = buffer;
-                        var source = offlineCtx.createBufferSource();
-                        source.buffer = myBuffer;
-                        source.connect(offlineCtx.destination);
-                        source.start();
-                        //将采样率转换为音频原本的采样率，便于音频断点处理
-                        offlineCtx.startRendering().then(function(renderedBuffer) {
-                            _renderCb(renderedBuffer);
-                            // console.log('渲染成功');
-                        }).catch(function(err) {
-                            console.log('渲染失败: ' + err);
-                        });
-
-                        function _renderCb(buffer) {
-                            if (beginDecodeTime != self.beginDecodeTime) { //防止seek时，之前未完成的异步解码对新队列的影响
-                                return;
+                    self.decoder.decode({
+                        callback: _decodeCb,
+                        arrayBuffer: result.arrayBuffer
+                    })
+                    /**
+                     * 解码成功回调
+                     * @param  {AudioBuffer} buffer PCM数据
+                     */
+                    function _decodeCb(buffer) {
+                        if (beginDecodeTime != self.beginDecodeTime) { //防止seek时，之前未完成的异步解码对新队列的影响
+                            return;
+                        }
+                        if (!self.bufferLength) {
+                            self.bufferLength = Math.ceil(audioInfo.totalTime * buffer.sampleRate);
+                        }
+                        if (!self.numberOfChannels) {
+                            self.numberOfChannels = buffer.numberOfChannels;
+                        }
+                        if (!self.sampleRate) {
+                            self.sampleRate = buffer.sampleRate;
+                        }
+                        if (!self.totalBuffer) {
+                            self.totalBuffer = self.audioContext.createBuffer(self.numberOfChannels, self.bufferLength, self.sampleRate);
+                        }
+                        Util.log('解码完成:' + result.beginIndex + ',' + result.endIndex, 'duration:', buffer.duration);
+                        if (Util.ifDebug()) {
+                            Util.log('解码花费:', new Date().getTime() - decodeBeginTime, 'ms');
+                        }
+                        if (self.seeking) {
+                            self.seeking = false;
+                            self.totalBuffer.dataOffset = self.totalBuffer.dataBegin = self.totalBuffer.dataEnd = (self.totalBuffer.length * result.beginIndex / indexSize) >> 0;
+                            self._copyPCMData(buffer);
+                            if (self.hasPlayed && !self.pause) {
+                                self._play(self.totalBuffer.dataBegin / self.totalBuffer.length * audioInfo.totalTime);
                             }
-                            if (!self.bufferLength) {
-                                self.bufferLength = Math.ceil(audioInfo.totalTime * buffer.sampleRate);
-                            }
-                            if (!self.numberOfChannels) {
-                                self.numberOfChannels = buffer.numberOfChannels;
-                            }
-                            if (!self.sampleRate) {
-                                self.sampleRate = buffer.sampleRate;
-                            }
-                            if (!self.totalBuffer) {
-                                self.totalBuffer = self.audioContext.createBuffer(self.numberOfChannels, self.bufferLength, self.sampleRate);
-                            }
-                            Util.log('解码完成:' + result.beginIndex + ',' + result.endIndex, 'duration:', buffer.duration);
-                            if (Util.ifDebug()) {
-                                Util.log('解码花费:', new Date().getTime() - decodeBeginTime, 'ms');
-                            }
-                            if (self.seeking) {
-                                self.seeking = false;
-                                self.totalBuffer.dataOffset = self.totalBuffer.dataBegin = self.totalBuffer.dataEnd = (self.totalBuffer.length * result.beginIndex / indexSize) >> 0;
-                                self._copyPCMData(buffer);
-                                if (self.hasPlayed && !self.pause) {
-                                    self._play(self.totalBuffer.dataBegin / self.totalBuffer.length * audioInfo.totalTime);
+                        } else {
+                            self._copyPCMData(buffer);
+                            if (self.waiting) {
+                                self.waiting = false;
+                                if (!self.pause) { //从等待状态唤醒
+                                    self.audioContext.resume();
+                                    playingCb();
                                 }
-                            } else {
-                                self._copyPCMData(buffer);
-                                if (self.waiting) {
-                                    self.waiting = false;
-                                    if (!self.pause) { //从等待状态唤醒
-                                        self.audioContext.resume();
-                                        playingCb();
-                                    }
-                                }
-                            }
-                            self.totalBuffer.endIndex = result.endIndex;
-                            if (result.endIndex + 1 < indexSize) {
-                                var nextDecodeTime = buffer.duration * 1000 / 2;
-                                if (nextDecodeTime > 10000) {
-                                    nextDecodeTime = 10000;
-                                }
-                                clearTimeout(self.timeoutIds.decodeTimeoutId);
-                                self.timeoutIds.decodeTimeoutId = setTimeout(function() {
-                                    if (self.loadingPromise) {
-                                        self.loadingPromise.stopNextLoad = true;
-                                        self.loadingPromise.then(function() {
-                                            _nextDecode(result, self.totalBuffer, minSize, audioInfo);
-                                        })
-                                    } else {
-                                        _nextDecode(result, self.totalBuffer, minSize, audioInfo);
-                                    }
-                                }, nextDecodeTime);
                             }
                         }
-                    }, function() {
-                        Util.log(index, "解码失败", e);
-                    });
+                        self.totalBuffer.endIndex = result.endIndex;
+                        if (result.endIndex + 1 < indexSize) {
+                            var nextDecodeTime = buffer.duration * 1000 / 2;
+                            if (nextDecodeTime > 10000) {
+                                nextDecodeTime = 10000;
+                            }
+                            clearTimeout(self.timeoutIds.decodeTimeoutId);
+                            self.timeoutIds.decodeTimeoutId = setTimeout(function() {
+                                if (self.loadingPromise) {
+                                    self.loadingPromise.stopNextLoad = true;
+                                    self.loadingPromise.then(function() {
+                                        _nextDecode(result, self.totalBuffer, minSize, audioInfo);
+                                    })
+                                } else {
+                                    _nextDecode(result, self.totalBuffer, minSize, audioInfo);
+                                }
+                            }, nextDecodeTime);
+                        }
+                    }
 
                     function _nextDecode(result, totalBuffer, minSize, audioInfo) {
                         if (!result.exceed) {
@@ -174,34 +165,19 @@ define(function(require, exports, module) {
             //复制PCM流
             _copyPCMData: function(_buffer) {
                 var offset = this.totalBuffer.dataOffset;
-                var sampleSize = 1152; //mp3一帧有1152个采样点
-                var delLength = sampleSize/2;
-
-                // var cData = _buffer.getChannelData(0);
-                // for (var i = 0; i < sampleSize; i++) {
-                //     if (!cData[i]) {
-                //         delLength++;
-                //     } else {
-                //         for (var j = 0; j < sampleSize / 4; j++) {
-                //             delLength++;
-                //         }
-                //         break;
-                //     }
-                // }
-
                 for (var i = 0; i < _buffer.numberOfChannels; i++) {
-                    var cData = _buffer.getChannelData(i).slice(delLength);
+                    var cData = _buffer.getChannelData(i);
                     if (cData.length + offset > this.totalBuffer.length) {
                         cData = cData.slice(0, cData.length + offset - this.totalBuffer.length);
                     }
                     this.totalBuffer.getChannelData(i).set(cData, offset);
                 }
-                this.totalBuffer.dataEnd = offset + _buffer.length - delLength;
+                this.totalBuffer.dataEnd = offset + _buffer.length;
 
                 //展示前后衔接处波形图，帮助分析
                 if (this.preBuffer) {
-                    var d1 = this.preBuffer.getChannelData(0).slice(-delLength * 2);
-                    var d2 = _buffer.getChannelData(0).slice(delLength, delLength * 3);
+                    var d1 = this.preBuffer.getChannelData(0).slice(-1152 * 2);
+                    var d2 = _buffer.getChannelData(0).slice(1152, 1152 * 3);
                     var ctx = document.querySelector('#canvas').getContext("2d");
                     ctx.clearRect(0, 0, ctx.canvas.width, 200);
                     ctx.beginPath();
@@ -519,7 +495,7 @@ define(function(require, exports, module) {
                         uint8Array.set(new Uint8Array(result), rightDeledData.byteLength);
                         // _clearFristFrame(newResult);
                         result = newResult;
-                    } else if (begeinExtraLength) {
+                    } else {
                         //删除头部不完整数据
                         result = arrayBuffer.slice(begeinExtraLength);
                     }
@@ -725,10 +701,11 @@ define(function(require, exports, module) {
                     errorCb();
                     Player.error = 'parse audioInfo failed';
                 }
-            }).catch(function() {
-                Player.error = 'load audioInfo failed';
-                errorCb();
             })
+            /*.catch(function() {
+                            Player.error = 'load audioInfo failed';
+                            errorCb();
+                        })*/
         }
         return new _Player(_url, opt);
     }
