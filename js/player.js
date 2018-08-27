@@ -87,13 +87,11 @@ define(function(require, exports, module) {
                         var decodeBeginTime = new Date().getTime();
                     }
                     var skipFrames = 0;
-                    if(self.fileBlocks[result.beginIndex - 1] && self.fileBlocks[result.beginIndex - 1].rightDeledData){
-                        skipFrames = 1;
-                    }
                     self.decoder.decode({
                         callback: _decodeCb,
                         arrayBuffer: result.arrayBuffer,
-                        skipFrames: skipFrames
+                        beginIndex: result.beginIndex,
+                        endIndex: result.endIndex
                     })
                     /**
                      * 解码成功回调
@@ -486,19 +484,18 @@ define(function(require, exports, module) {
              * @return {ArrayBuffer}              修复后的数据
              */
             _fixFileBlock: function(arrayBuffer, beginIndex, endIndex, excludeBegin, excludeEnd, offset) {
-                var endFrameSize = 2,
+                var endFrameSize = 1,
                     offset = offset || 0,
                     self = this;
                 var result = arrayBuffer;
+                var begeinExtraLength = Util.getLengthByFrameSync(arrayBuffer, this.audioInfo.frameSync, offset);
                 if (!excludeBegin) { //从头部开始
-                    var begeinExtraLength = Util.getLengthByFrameSync(arrayBuffer, this.audioInfo.frameSync, offset);
                     if (beginIndex - 1 >= 0 && this.fileBlocks[beginIndex - 1] && this.fileBlocks[beginIndex - 1].rightDeledData) { //修复头部数据
                         var rightDeledData = this.fileBlocks[beginIndex - 1].rightDeledData;
                         var newResult = new ArrayBuffer(result.byteLength + rightDeledData.byteLength);
                         var uint8Array = new Uint8Array(newResult);
                         uint8Array.set(new Uint8Array(rightDeledData), 0);
                         uint8Array.set(new Uint8Array(result), rightDeledData.byteLength);
-                        _clearFristFrame(newResult);
                         result = newResult;
                     } else {
                         //删除头部不完整数据
@@ -514,19 +511,6 @@ define(function(require, exports, module) {
                     endExtraLength = Util.getLengthByFrameSync(arrayBuffer, this.audioInfo.frameSync, null, true, endFrameSize);
                     if (endExtraLength) { //存储endFrameSize个帧给接下来的帧使用
                         this.fileBlocks[endIndex].rightDeledData = originResult.slice(originResult.byteLength - endExtraLength);
-                    }
-                }
-                //清除第一帧多余数据，值保留 reservoir bit
-                function _clearFristFrame(arrayBuffer) {
-                    var begeinExtraLength = Util.getLengthByFrameSync(arrayBuffer, self.audioInfo.frameSync, 11);
-                    var bitstream = new BitStream(arrayBuffer.slice(endExtraLength));
-                    var m_b_l = 0; //主数据负偏移量
-                    bitstream.skipBits(32);
-                    m_b_l = bitstream.getBits(9);
-
-                    var uint8Array = new Uint8Array(arrayBuffer);
-                    for (var i = 4; i < begeinExtraLength - m_b_l; i++) {
-                        uint8Array[i] = 0;
                     }
                 }
                 return result;

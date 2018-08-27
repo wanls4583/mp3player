@@ -4,6 +4,8 @@
 define(function(require, exports, module) {
     'use strict';
 
+    var BitStream = require('./bitstream');
+
     //ArrayBuffer转16进制字符串
     exports.arrayBufferToHexChar = function(arrayBuffer){
     	var bufferStr = '';
@@ -19,7 +21,15 @@ define(function(require, exports, module) {
         return bufferStr.slice(0,bufferStr.length-1);
     }
 
-    //根据同步标识返回数据长度
+    /**
+     * 根据同步标识返回相应数据长度
+     * @param  {ArrayBuffer} arrayBuffer 音频源数据
+     * @param  {String}      frameSync   16进制同步字符串标识
+     * @param  {Number}      offset      正向查找时头部需要跳过的字节数
+     * @param  {Boolean}     reverse     查找方向
+     * @param  {Number}      frameSize   逆向查找时需要返回多少帧数据长度
+     * @return {Number}                  数据长度
+     */
     exports.getLengthByFrameSync = function(arrayBuffer, frameSync, offset, reverse, frameSize) {
         var i = 0;
         var count = 200;
@@ -72,15 +82,49 @@ define(function(require, exports, module) {
         }
     }
 
+    /**
+     * 获取下一帧主数据偏移值
+     * @param  {ArrayBuffer} arrayBuffer 音频数据
+     * @param  {String}      frameSync   16进制同步字符串
+     * @return {Number}                  主数据偏移值
+     */
+    exports.getMainDataOffset = function(arrayBuffer, frameSync) {
+        //下一帧开始位置
+        var begeinExtraLength = this.getLengthByFrameSync(arrayBuffer, frameSync, 4);
+        var bitstream = new BitStream(arrayBuffer.slice(begeinExtraLength));
+        var mainDataOffset = 0; //主数据负偏移量
+        bitstream.skipBits(32);
+        mainDataOffset = bitstream.getBits(9);
+        return mainDataOffset;
+    }
+
+    /**
+     * 获取下一帧可解码数据帧偏移值
+     * @param  {ArrayBuffer} arrayBuffer 音频数据
+     * @param  {String}      frameSync   16进制同步字符串
+     * @return {Number}                  可解码数据帧偏移值
+     */
+    exports.getAvailableFrameOffset = function(arrayBuffer, frameSync) {
+        var mainDataOffset = this.getMainDataOffset(arrayBuffer, frameSync);
+        //下一帧开始位置
+        var begeinExtraLength = this.getLengthByFrameSync(arrayBuffer, frameSync, 4);
+        //下一帧主数据偏移量大于上一帧，说明上一帧为无效帧
+        if(mainDataOffset >= begeinExtraLength){
+            return this.getLengthByFrameSync(arrayBuffer, frameSync, begeinExtraLength + 4);
+        }else{
+            return begeinExtraLength;
+        }
+    }
+
     exports.log = function() {
         if (location.search.indexOf('audio-debug') > -1) {
-            console.log.apply(this, arguments);
+            console.log.apply(window, arguments);
         }
     }
 
     exports.testLog = function() {
         if (location.search.indexOf('audio-test') > -1) {
-            console.log.apply(this, arguments);
+            console.log.apply(window, arguments);
         }
     }
 

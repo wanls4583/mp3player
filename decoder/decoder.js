@@ -3,25 +3,17 @@ Mad.Decoder = function() {
 };
 /**
  * 重置解码器
- * @return {Boolean} 是否重置成功
+ * @param           {Object}  opt   参数
+ * opt.callback     {Function}      成功回调
+ * opt.ArrayBuffer  {ArrayBuffer}   音频数据
+ * opt.beginIndex   {Number}        开始片段索引
+ * opt.endIndex     {Number}        结束片段索引
+ * @return          {Boolean}       是否重置成功
  */
-Mad.Decoder.prototype.reset = function() {
-    this.mpeg = new Mad.Stream(new Mad.SubStream(this.stream, 0, this.stream.state['amountRead']));
+Mad.Decoder.prototype.reset = function(opt) {
+    this.createMpegStream(opt);
+    this.callback = opt.callback;
     this.synth = new Mad.Synth();
-    this.frame = new Mad.Frame();
-    for (var i = 0; this.frame && i < this.skipFrames; i++) {
-        this.frame = Mad.Frame.decode(this.frame, this.mpeg);
-    }
-    if (this.frame == null) {
-        if (this.mpeg.error == Mad.Error.BUFLEN) {
-            console.log("End of file!");
-        }
-        return false;
-    }
-    //mp3前后数据帧有关联
-    if (this.skipFrames > 0 && this.overlap) {
-        this.frame.overlap = this.overlap;
-    }
     this.frame = Mad.Frame.decode(this.frame, this.mpeg);
     if (this.frame == null) {
         if (this.mpeg.error == Mad.Error.BUFLEN) {
@@ -31,8 +23,6 @@ Mad.Decoder.prototype.reset = function() {
     }
     this.channelCount = this.frame.header.nchannels();
     this.sampleRate = this.frame.header.samplerate;
-    this.offset = 0;
-    this.absoluteFrameIndex = 0;
     this.synth.frame(this.frame);
     return true;
 };
@@ -40,8 +30,9 @@ Mad.Decoder.prototype.reset = function() {
  * 解码音频数据
  * @param           {Object}  opt   参数
  * opt.callback     {Function}      成功回调
- * opt.skipFrames   {Number}        头部需要跳过多少帧
  * opt.ArrayBuffer  {ArrayBuffer}   音频数据
+ * opt.beginIndex   {Number}        开始片段索引
+ * opt.endIndex     {Number}        结束片段索引
  * @return          {Array}         PCM数据
  */
 Mad.Decoder.prototype.decode = function(opt) {
@@ -51,10 +42,7 @@ Mad.Decoder.prototype.decode = function(opt) {
         this.decodeQue.push(opt);
         return;
     }
-    this.stream = new Mad.BufferStream(opt.arrayBuffer);
-    this.callback = opt.callback;
-    this.skipFrames = opt.skipFrames || 0;
-    if (!this.reset()) {
+    if (!this.reset(opt)) {
         //数该段据错误，继续解码队列中的音频数据
         if (this.decodeQue.length) {
             this.decode(this.decodeQue.shift());
@@ -69,15 +57,13 @@ Mad.Decoder.prototype.decode = function(opt) {
     function _decode() {
         self.decoding = true;
         //一次最多解码200帧，防止浏览器阻塞
-        for (var i = 0; i < 200; i++) {
+        for (var i = 0; i < 20; i++) {
             for (var ch = 0; ch < self.channelCount; ++ch) {
                 buffer.samples[ch] = buffer.samples[ch].concat(self.synth.pcm.samples[ch]);
             }
             buffer.length += self.synth.pcm.samples[0].length;
             self.frame = Mad.Frame.decode(self.frame, self.mpeg);
             if (self.frame == null) {
-                self.mpeg = null;
-                self.stream = null;
                 buffer.duration = buffer.length / buffer.sampleRate;
                 self.callback && self.callback(buffer);
                 self.decoding = false;
@@ -87,8 +73,8 @@ Mad.Decoder.prototype.decode = function(opt) {
                 return;
             } else {
                 self.synth.frame(self.frame);
-                self.absoluteFrameIndex++;
-                self.overlap = self.frame.overlap;
+                self.copyMpegData();
+                self.preFrame = JSON.stringify(self.frame);
             }
         }
         //解码剩余的数据
@@ -98,15 +84,91 @@ Mad.Decoder.prototype.decode = function(opt) {
     }
 };
 
-function Mp3AudioBuffer(channelCount, sampleRate){
+/**
+ * 解码音频数据
+ * @param           {Object}  opt   参数
+ * opt.callback     {Function}      成功回调
+ * opt.ArrayBuffer  {ArrayBuffer}   音频数据
+ * opt.beginIndex   {Number}        开始片段索引
+ * opt.endIndex     {Number}        结束片段索引
+ */
+Mad.Decoder.prototype.createMpegStream = function(opt) {
+    var beginIndex = opt.beginIndex;
+    var endIndex = opt.endIndex;
+    var arrayBuffer = opt.arrayBuffer;
+    //接着上个片段继续解码
+    if (this.mpeg && this.endIndex && this.endIndex + 1 == beginIndex) {
+        var oldBuffer = this.stream.state['arrayBuffer'];
+        var newBuffer = new ArrayBuffer(oldBuffer.byteLength + arrayBuffer.byteLength);
+        var uint8Array = new Uint8Array(newBuffer);
+        uint8Array.set(new Uint8Array(oldBuffer), 0);
+        uint8Array.set(new Uint8Array(arrayBuffer), oldBuffer.byteLength);
+        var stream = new Mad.BufferStream(newBuffer);
+        this.stream = stream;
+        stream = new Mad.SubStream(stream, 0, newBuffer.byteLength);
+        this.mpeg.bufend = newBuffer.byteLength;
+        this.mpeg.stream = stream;
+        this.pasteMpegData();
+        this.mpeg.anc_ptr.stream = stream;
+        this.mpeg.ptr.stream = stream;
+        this.frame = JSON.parse(this.preFrame);
+    } else {
+        this.stream = new Mad.BufferStream(arrayBuffer);
+        this.mpeg = new Mad.Stream(new Mad.SubStream(this.stream, 0, this.stream.state['amountRead']));
+        this.frame = new Mad.Frame();
+    }
+    this.endIndex = endIndex;
+}
+
+//记录数据流状态
+Mad.Decoder.prototype.copyMpegData = function(){
+    this.mpegData = {};
+    this.mpegData.anc_bitlen = this.mpegData.anc_bitlen;
+    this.mpegData.anc_ptr = {
+        cache: this.mpeg.anc_ptr.cache,
+        left: this.mpeg.anc_ptr.left,
+        offset: this.mpeg.anc_ptr.offset,
+    }
+    this.mpegData.ptr = {
+        cache: this.mpeg.ptr.cache,
+        left: this.mpeg.ptr.left,
+        offset: this.mpeg.ptr.offset,
+    }
+    this.mpegData.freerate = this.mpeg.freerate;
+    this.mpegData.main_data = this.mpeg.main_data;
+    this.mpegData.md_len = this.mpeg.md_len;
+    this.mpegData.next_frame = this.mpeg.next_frame;
+    this.mpegData.this_frame = this.mpeg.this_frame;
+    this.mpegData.skiplen = this.mpeg.skiplen;
+    this.mpegData.sync = this.mpeg.sync;
+}
+
+//重现数据流状态
+Mad.Decoder.prototype.pasteMpegData = function(){
+    for(var key in this.mpegData){
+        this.mpeg[key] = this.mpegData[key];
+    }
+}
+
+/**
+ * 模拟AudioBuffer对象
+ * @param {Number} channelCount 声道数量
+ * @param {Number} sampleRate   采样率
+ */
+function Mp3AudioBuffer(channelCount, sampleRate) {
     this.samples = [];
     this.numberOfChannels = channelCount;
     this.sampleRate = sampleRate;
-    for(var i=0; i<channelCount; i++){
+    for (var i = 0; i < channelCount; i++) {
         this.samples[i] = [];
     }
 }
 
-Mp3AudioBuffer.prototype.getChannelData  = function(channel){
+/**
+ * 获取单个声道PCM数据
+ * @param  {Number}      channel  声道
+ * @return {Float32Array}         PCM数据
+ */
+Mp3AudioBuffer.prototype.getChannelData = function(channel) {
     return this.samples[channel];
 }
