@@ -9,7 +9,7 @@ Mad.Decoder.prototype.reset = function() {
     this.mpeg = new Mad.Stream(new Mad.SubStream(this.stream, 0, this.stream.state['amountRead']));
     this.synth = new Mad.Synth();
     this.frame = new Mad.Frame();
-    for (var i = 0; this.frame && i < this.skipFrames; i++) {
+    for (var i = 0; this.frame && i < this.skipFrames + 1; i++) {
         this.frame = Mad.Frame.decode(this.frame, this.mpeg);
     }
     if (this.frame == null) {
@@ -19,8 +19,8 @@ Mad.Decoder.prototype.reset = function() {
         return false;
     }
     //mp3前后数据帧有关联
-    if (this.skipFrames > 1 && Mad.Decoder.overlap) {
-        this.frame.overlap = Mad.Decoder.overlap;
+    if (this.skipFrames > 0 && this.overlap) {
+        this.frame.overlap = this.overlap;
     }
     this.channelCount = this.frame.header.nchannels();
     this.sampleRate = this.frame.header.samplerate;
@@ -38,8 +38,7 @@ Mad.Decoder.prototype.reset = function() {
  * @return          {Array}         PCM数据
  */
 Mad.Decoder.prototype.decode = function(opt) {
-    var overlap = null,
-        buffer = null,
+    var buffer = null,
         self = this;
     if (this.decoding) {
         this.decodeQue.push(opt);
@@ -56,6 +55,7 @@ Mad.Decoder.prototype.decode = function(opt) {
         return;
     }
     buffer = new Mp3AudioBuffer(this.channelCount, this.sampleRate);
+    buffer.length = 0;
 
     _decode();
 
@@ -66,12 +66,12 @@ Mad.Decoder.prototype.decode = function(opt) {
             for (var ch = 0; ch < self.channelCount; ++ch) {
                 buffer.samples[ch] = buffer.samples[ch].concat(self.synth.pcm.samples[ch]);
             }
-            self.offset += self.synth.pcm.samples[0].length;
+            buffer.length += self.synth.pcm.samples[0].length;
             self.frame = Mad.Frame.decode(self.frame, self.mpeg);
             if (self.frame == null) {
                 self.mpeg = null;
                 self.stream = null;
-                buffer.duration = buffer.samples[0].length / buffer.sampleRate;
+                buffer.duration = buffer.length / buffer.sampleRate;
                 self.callback && self.callback(buffer);
                 self.decoding = false;
                 if (self.decodeQue.length) {
@@ -81,7 +81,7 @@ Mad.Decoder.prototype.decode = function(opt) {
             } else {
                 self.synth.frame(self.frame);
                 self.absoluteFrameIndex++;
-                overlap = self.frame.overlap;
+                self.overlap = self.frame.overlap;
             }
         }
         //解码剩余的数据

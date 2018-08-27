@@ -86,9 +86,14 @@ define(function(require, exports, module) {
                     if (Util.ifDebug()) {
                         var decodeBeginTime = new Date().getTime();
                     }
+                    var skipFrames = 0;
+                    if(self.fileBlocks[result.beginIndex - 1] && self.fileBlocks[result.beginIndex - 1].rightDeledData){
+                        skipFrames = 1;
+                    }
                     self.decoder.decode({
                         callback: _decodeCb,
-                        arrayBuffer: result.arrayBuffer
+                        arrayBuffer: result.arrayBuffer,
+                        skipFrames: skipFrames
                     })
                     /**
                      * 解码成功回调
@@ -493,7 +498,7 @@ define(function(require, exports, module) {
                         var uint8Array = new Uint8Array(newResult);
                         uint8Array.set(new Uint8Array(rightDeledData), 0);
                         uint8Array.set(new Uint8Array(result), rightDeledData.byteLength);
-                        // _clearFristFrame(newResult);
+                        _clearFristFrame(newResult);
                         result = newResult;
                     } else {
                         //删除头部不完整数据
@@ -512,20 +517,18 @@ define(function(require, exports, module) {
                     }
                 }
                 //清除第一帧多余数据，值保留 reservoir bit
-                // function _clearFristFrame(arrayBuffer) {
-                //     var begeinExtraLength = Util.getLengthByFrameSync(arrayBuffer, self.audioInfo.frameSync, 11);
-                //     var bitstream = new BitStream(arrayBuffer.slice(endExtraLength));
-                //     var m_b_l = 0; //主数据负偏移量
-                //     bitstream.skipBits(32);
-                //     m_b_l = bitstream.getBits(9);
+                function _clearFristFrame(arrayBuffer) {
+                    var begeinExtraLength = Util.getLengthByFrameSync(arrayBuffer, self.audioInfo.frameSync, 11);
+                    var bitstream = new BitStream(arrayBuffer.slice(endExtraLength));
+                    var m_b_l = 0; //主数据负偏移量
+                    bitstream.skipBits(32);
+                    m_b_l = bitstream.getBits(9);
 
-                //     var uint8Array = new Uint8Array(arrayBuffer);
-                //     uint8Array[0] = 255;
-                //     uint8Array[1] = 7 << 5
-                //     for (var i = 2; i < begeinExtraLength - m_b_l; i++) {
-                //         uint8Array[i] = 0;
-                //     }
-                // }
+                    var uint8Array = new Uint8Array(arrayBuffer);
+                    for (var i = 4; i < begeinExtraLength - m_b_l; i++) {
+                        uint8Array[i] = 0;
+                    }
+                }
                 return result;
             },
             //跳转某个索引
