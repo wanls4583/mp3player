@@ -9,7 +9,7 @@ Mad.Decoder.prototype.reset = function() {
     this.mpeg = new Mad.Stream(new Mad.SubStream(this.stream, 0, this.stream.state['amountRead']));
     this.synth = new Mad.Synth();
     this.frame = new Mad.Frame();
-    for (var i = 0; this.frame && i < this.skipFrames + 1; i++) {
+    for (var i = 0; this.frame && i < this.skipFrames; i++) {
         this.frame = Mad.Frame.decode(this.frame, this.mpeg);
     }
     if (this.frame == null) {
@@ -21,6 +21,13 @@ Mad.Decoder.prototype.reset = function() {
     //mp3前后数据帧有关联
     if (this.skipFrames > 0 && this.overlap) {
         this.frame.overlap = this.overlap;
+    }
+    this.frame = Mad.Frame.decode(this.frame, this.mpeg);
+    if (this.frame == null) {
+        if (this.mpeg.error == Mad.Error.BUFLEN) {
+            console.log("End of file!");
+        }
+        return false;
     }
     this.channelCount = this.frame.header.nchannels();
     this.sampleRate = this.frame.header.samplerate;
@@ -46,7 +53,7 @@ Mad.Decoder.prototype.decode = function(opt) {
     }
     this.stream = new Mad.BufferStream(opt.arrayBuffer);
     this.callback = opt.callback;
-    this.skipFrames = opt.skipFrames || 1;
+    this.skipFrames = opt.skipFrames || 0;
     if (!this.reset()) {
         //数该段据错误，继续解码队列中的音频数据
         if (this.decodeQue.length) {
