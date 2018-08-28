@@ -427,8 +427,10 @@ define(function(require, exports, module) {
                         Util.testLog('byteLength1:', tmp.length);
                     }
                 }
-                //删除尾部损坏数据
-                result = this._fixFileBlock(result, index, endIndex, false, false, 0);
+                //删除头部和尾部损坏数据
+                if(negative){
+                    result = this._fixFileBlock(result, index, endIndex, false, false, 0);
+                }
                 if (Util.ifTest()) {
                     var tmp = new Uint8Array(result);
                     if (tmp.length > 0) {
