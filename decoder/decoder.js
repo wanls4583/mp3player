@@ -18,6 +18,7 @@ Mad.Decoder.prototype.reset = function(opt) {
         this.frame = Mad.Frame.decode(this.frame, this.mpeg);
         if (this.frame == null) {
             this.destory();
+            console.log('error_reset');
             if (this.mpeg.error == Mad.Error.BUFLEN) {
                 this.mpeg = null;
                 this.stream = null;
@@ -27,7 +28,6 @@ Mad.Decoder.prototype.reset = function(opt) {
                 this.mpeg = null;
                 this.onerror && this.onerror();
             }
-            console.log('error_reset');
             return false;
         }
         this.synth = new Mad.Synth();
@@ -66,11 +66,11 @@ Mad.Decoder.prototype.decode = function(opt) {
         for (var i = 0; i < 20; i++) {
             if (self.mpeg.bufend - self.mpeg.next_frame <= (self.mpeg.next_frame - self.mpeg.this_frame) * 4) {
                 buffer.duration = buffer.length / buffer.sampleRate;
+                console.log('success_decode',buffer.length);
                 self.onsuccess && self.onsuccess(buffer);
                 if (self.decodeQue.length) {
                     self.decode(self.decodeQue.shift());
                 }
-                console.log('success_decode',buffer.length);
                 buffer = null;
                 self.destory();
                 return;
@@ -85,8 +85,8 @@ Mad.Decoder.prototype.decode = function(opt) {
                 }else{
                     buffer = null;
                     self.destory();
-                    self.onerror && self.onerror();
                     console.log('error_decode');
+                    self.onerror && self.onerror();
                     return;
                 }
             }

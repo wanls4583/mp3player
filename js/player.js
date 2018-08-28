@@ -549,8 +549,8 @@ define(function(require, exports, module) {
                 }
                 if (this.totalBuffer) {
                     var begin = this.totalBuffer.length * index / indexSize;
+                    var startTime = index / indexSize * audioInfo.totalTime;
                     if (begin > this.totalBuffer.dataBegin && begin + 5 * this.sampleRate < this.totalBuffer.dataEnd) {
-                        var startTime = index / indexSize * audioInfo.totalTime;
                         if (this.pause) {
                             this.resumeTime = startTime;
                         } else {
@@ -559,6 +559,9 @@ define(function(require, exports, module) {
                             this._play(startTime);
                         }
                         return;
+                    }else if(this.pause){
+                        this.resumeTime = -1；
+                        this.hasPlayed = false;
                     }
                     this.totalBuffer = this.audioContext.createBuffer(this.numberOfChannels, this.bufferLength, this.sampleRate);
                 }
@@ -628,7 +631,7 @@ define(function(require, exports, module) {
                 } else if (!this.clickPlayTime) {
                     Player.waiting = false;
                     this.clickPlayTime = new Date().getTime();
-                } else if (this.audioInfo === false || new Date().getTime() - this.clickPlayTime > 5000 && !this.audioInfo) {
+                } else if (Player.audioInfo === false || new Date().getTime() - Player.clickPlayTime > 5000 && !Player.audioInfo) {
                     this.clickPlayTime = 0;
                     return;
                 }
@@ -657,6 +660,7 @@ define(function(require, exports, module) {
                         playingCb();
                     }
                     Player._play(Player.totalBuffer.dataBegin / Player.totalBuffer.length * audioInfo.totalTime);
+                    Player.pause = false;
                     playCb();
                 } else if ((Player.pause == true || Player.finished) && !Player.waiting) {
                     if (Player.finished) {
