@@ -86,19 +86,24 @@ define(function(require, exports, module) {
                     if (Util.ifDebug()) {
                         var decodeBeginTime = new Date().getTime();
                     }
-                    var skipFrames = 0;
+                    var redoCount = 0;
+                    var arrayBuffer = result.arrayBuffer;
+                    var beginIndex = result.beginIndex;
+                    var endIndex = result.endIndex;
                     self.decoder.decode({
-                        callback: _decodeCb,
-                        arrayBuffer: result.arrayBuffer,
-                        beginIndex: result.beginIndex,
-                        endIndex: result.endIndex
-                    })
+                        onsuccess: _onsuccess,
+                        onerror: _onerror,
+                        arrayBuffer: arrayBuffer,
+                        beginIndex: beginIndex,
+                        endIndex: endIndex
+                    });
                     /**
                      * 解码成功回调
                      * @param  {AudioBuffer} buffer PCM数据
                      */
-                    function _decodeCb(buffer) {
-                        if (beginDecodeTime != self.beginDecodeTime) { //防止seek时，之前未完成的异步解码对新队列的影响
+                    function _onsuccess(buffer) {
+                        //防止seek时，之前未完成的异步解码对新队列的影响
+                        if (beginDecodeTime != self.beginDecodeTime) {
                             return;
                         }
                         if (!self.bufferLength) {
@@ -153,7 +158,27 @@ define(function(require, exports, module) {
                             }, nextDecodeTime);
                         }
                     }
-
+                    //解码失败回调
+                    function _onerror(){
+                        if (beginDecodeTime != self.beginDecodeTime) {
+                            return;
+                        }
+                        //最多重试3次
+                        if(redoCount > 5){
+                            return;
+                        }
+                        arrayBuffer = arrayBuffer.slice(100);
+                        arrayBuffer = self._fixFileBlock(arrayBuffer);
+                        self.decoder.decode({
+                            onsuccess: _onsuccess,
+                            onerror: _onerror,
+                            arrayBuffer: arrayBuffer,
+                            beginIndex: beginIndex,
+                            endIndex: endIndex
+                        });
+                        redoCount++;
+                        console.log('decode fail...redo',redoCount);
+                    }
                     function _nextDecode(result, totalBuffer, minSize, audioInfo) {
                         if (!result.exceed) {
                             self._decodeAudioData(result.beginIndex, result.endIndex - result.beginIndex + 1 + self.cacheFrameSize, null, beginDecodeTime);
@@ -428,8 +453,8 @@ define(function(require, exports, module) {
                     }
                 }
                 //删除头部和尾部损坏数据
-                if(negative){
-                    result = this._fixFileBlock(result, index, endIndex, false, false, 0);
+                if (negative) {
+                    result = this._fixFileBlock(result);
                 }
                 if (Util.ifTest()) {
                     var tmp = new Uint8Array(result);
@@ -478,44 +503,38 @@ define(function(require, exports, module) {
             /**
              * 修复数据块头尾损坏数据（分割后，头部数据可能不是数据帧的帧头开始，需要修复）
              * @param  {ArrayBuffer} arrayBuffer  源数据
-             * @param  {Number}      beginIndex   需要修复的数据块所有
-             * @param  {Number}      endIndex     上一个最近的已修复的数据块索引
-             * @param  {Boolean}     excludeBegin 是否放弃修复头部
-             * @param  {Boolean}     excludeEnd   是否放弃修复尾部
-             * @param  {Number}      offset       开始修复头部的起始位置
              * @return {ArrayBuffer}              修复后的数据
              */
-            _fixFileBlock: function(arrayBuffer, beginIndex, endIndex, excludeBegin, excludeEnd, offset) {
-                var endFrameSize = 1,
-                    offset = offset || 0,
-                    self = this;
-                var result = arrayBuffer;
-                var begeinExtraLength = Util.getLengthByFrameSync(arrayBuffer, this.audioInfo.frameSync, offset);
-                if (!excludeBegin) { //从头部开始
-                    if (beginIndex - 1 >= 0 && this.fileBlocks[beginIndex - 1] && this.fileBlocks[beginIndex - 1].rightDeledData) { //修复头部数据
-                        var rightDeledData = this.fileBlocks[beginIndex - 1].rightDeledData;
-                        var newResult = new ArrayBuffer(result.byteLength + rightDeledData.byteLength);
-                        var uint8Array = new Uint8Array(newResult);
-                        uint8Array.set(new Uint8Array(rightDeledData), 0);
-                        uint8Array.set(new Uint8Array(result), rightDeledData.byteLength);
-                        result = newResult;
-                    } else {
-                        //删除头部不完整数据
-                        result = arrayBuffer.slice(begeinExtraLength);
-                    }
+            _fixFileBlock: function(arrayBuffer) {
+                var frameSync = this.audioInfo.frameSync;
+                //删除帧头部多余数据
+                var begeinExtraLength = Util.getLengthByFrameSync(arrayBuffer, frameSync, 0);
+                arrayBuffer = arrayBuffer.slice(begeinExtraLength);
+                begeinExtraLength = Util.getLengthByFrameSync(arrayBuffer, frameSync, 4);
+                var mainDataOffset = _getMainDataOffset(arrayBuffer)
+                //下一帧主数据偏移量大于上一帧总长度，说明上一帧为无效帧
+                if (mainDataOffset >= begeinExtraLength) {
+                    return this._fixFileBlock(arrayBuffer.slice(begeinExtraLength));
                 }
-                if (!excludeEnd) { //从尾部开始
-                    var endExtraLength = Util.getLengthByFrameSync(arrayBuffer, this.audioInfo.frameSync, null, true, 1);
-                    var originResult = result;
-                    if (endExtraLength) { //删除尾部不完整数据
-                        result = result.slice(0, result.byteLength - endExtraLength);
-                    }
-                    endExtraLength = Util.getLengthByFrameSync(arrayBuffer, this.audioInfo.frameSync, null, true, endFrameSize);
-                    if (endExtraLength) { //存储endFrameSize个帧给接下来的帧使用
-                        this.fileBlocks[endIndex].rightDeledData = originResult.slice(originResult.byteLength - endExtraLength);
-                    }
+                var u8a = new Uint8Array(arrayBuffer);
+                //第一帧数据清零
+                for (var i = 4; i < begeinExtraLength - mainDataOffset; i++){
+                    u8a[i] = 0;
                 }
-                return result;
+                return arrayBuffer;
+
+                //获取mainData偏移量
+                function _getMainDataOffset(arrayBuffer) {
+                    var mainDataOffset = 0;
+                    //下一帧开始偏移量
+                    var begeinExtraLength = Util.getLengthByFrameSync(arrayBuffer, frameSync, 4);
+                    var bitstream = new BitStream(arrayBuffer.slice(begeinExtraLength));
+                    var mainDataOffset = 0;
+                    bitstream.skipBits(32);
+                    //主数据负偏移量
+                    mainDataOffset = bitstream.getBits(9);
+                    return mainDataOffset;
+                }
             },
             //跳转某个索引
             _seek: function(index) {

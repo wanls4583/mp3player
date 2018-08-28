@@ -4,8 +4,6 @@
 define(function(require, exports, module) {
     'use strict';
 
-    var BitStream = require('./bitstream');
-
     //ArrayBuffer转16进制字符串
     exports.arrayBufferToHexChar = function(arrayBuffer){
     	var bufferStr = '';
@@ -79,40 +77,6 @@ define(function(require, exports, module) {
                 }
                 count -= 200;
             }
-        }
-    }
-
-    /**
-     * 获取下一帧主数据偏移值
-     * @param  {ArrayBuffer} arrayBuffer 音频数据
-     * @param  {String}      frameSync   16进制同步字符串
-     * @return {Number}                  主数据偏移值
-     */
-    exports.getMainDataOffset = function(arrayBuffer, frameSync) {
-        //下一帧开始位置
-        var begeinExtraLength = this.getLengthByFrameSync(arrayBuffer, frameSync, 4);
-        var bitstream = new BitStream(arrayBuffer.slice(begeinExtraLength));
-        var mainDataOffset = 0; //主数据负偏移量
-        bitstream.skipBits(32);
-        mainDataOffset = bitstream.getBits(9);
-        return mainDataOffset;
-    }
-
-    /**
-     * 获取下一帧可解码数据帧偏移值
-     * @param  {ArrayBuffer} arrayBuffer 音频数据
-     * @param  {String}      frameSync   16进制同步字符串
-     * @return {Number}                  可解码数据帧偏移值
-     */
-    exports.getAvailableFrameOffset = function(arrayBuffer, frameSync) {
-        var mainDataOffset = this.getMainDataOffset(arrayBuffer, frameSync);
-        //下一帧开始位置
-        var begeinExtraLength = this.getLengthByFrameSync(arrayBuffer, frameSync, 4);
-        //下一帧主数据偏移量大于上一帧，说明上一帧为无效帧
-        if(mainDataOffset >= begeinExtraLength){
-            return this.getLengthByFrameSync(arrayBuffer, frameSync, begeinExtraLength + 4);
-        }else{
-            return begeinExtraLength;
         }
     }
 
