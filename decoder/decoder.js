@@ -13,17 +13,19 @@ Mad.Decoder = function() {
 Mad.Decoder.prototype.reset = function(opt) {
     this.createMpegStream(opt);
     this.callback = opt.callback;
-    this.synth = new Mad.Synth();
-    this.frame = Mad.Frame.decode(this.frame, this.mpeg);
-    if (this.frame == null) {
-        if (this.mpeg.error == Mad.Error.BUFLEN) {
-            console.log("End of file!");
+    if (!this.channelCount) {
+        this.frame = Mad.Frame.decode(this.frame, this.mpeg);
+        if (this.frame == null) {
+            if (this.mpeg.error == Mad.Error.BUFLEN) {
+                console.log("End of file!");
+            }
+            return false;
         }
-        return false;
+        this.synth = new Mad.Synth();
+        this.channelCount = this.frame.header.nchannels();
+        this.sampleRate = this.frame.header.samplerate;
+        this.synth.frame(this.frame);
     }
-    this.channelCount = this.frame.header.nchannels();
-    this.sampleRate = this.frame.header.samplerate;
-    this.synth.frame(this.frame);
     return true;
 };
 /**
@@ -58,12 +60,7 @@ Mad.Decoder.prototype.decode = function(opt) {
         self.decoding = true;
         //一次最多解码200帧，防止浏览器阻塞
         for (var i = 0; i < 20; i++) {
-            for (var ch = 0; ch < self.channelCount; ++ch) {
-                buffer.samples[ch] = buffer.samples[ch].concat(self.synth.pcm.samples[ch]);
-            }
-            buffer.length += self.synth.pcm.samples[0].length;
-            self.frame = Mad.Frame.decode(self.frame, self.mpeg);
-            if (self.frame == null) {
+            if (self.mpeg.bufend - self.mpeg.next_frame <= (self.mpeg.next_frame - self.mpeg.this_frame) * 4) {
                 buffer.duration = buffer.length / buffer.sampleRate;
                 self.callback && self.callback(buffer);
                 self.decoding = false;
@@ -72,9 +69,14 @@ Mad.Decoder.prototype.decode = function(opt) {
                 }
                 return;
             } else {
+                self.frame = Mad.Frame.decode(self.frame, self.mpeg);
                 self.synth.frame(self.frame);
-                self.copyMpegData();
-                self.preFrame = JSON.stringify(self.frame);
+                for (var ch = 0; ch < self.channelCount; ++ch) {
+                    buffer.samples[ch] = buffer.samples[ch].concat(self.synth.pcm.samples[ch]);
+                }
+                buffer.length += self.synth.pcm.samples[0].length;
+                // self.copyMpegData();
+                // self.preFrame = JSON.stringify(self.frame);
             }
         }
         //解码剩余的数据
@@ -97,31 +99,32 @@ Mad.Decoder.prototype.createMpegStream = function(opt) {
     var endIndex = opt.endIndex;
     var arrayBuffer = opt.arrayBuffer;
     //接着上个片段继续解码
-    if (this.mpeg && this.endIndex && this.endIndex + 1 == beginIndex) {
+    if (this.mpeg && this.endIndex + 1 == beginIndex) {
         var oldBuffer = this.stream.state['arrayBuffer'];
         var newBuffer = new ArrayBuffer(oldBuffer.byteLength + arrayBuffer.byteLength);
         var uint8Array = new Uint8Array(newBuffer);
         uint8Array.set(new Uint8Array(oldBuffer), 0);
         uint8Array.set(new Uint8Array(arrayBuffer), oldBuffer.byteLength);
         var stream = new Mad.BufferStream(newBuffer);
+        // this.pasteMpegData();
         this.stream = stream;
         stream = new Mad.SubStream(stream, 0, newBuffer.byteLength);
         this.mpeg.bufend = newBuffer.byteLength;
         this.mpeg.stream = stream;
-        this.pasteMpegData();
         this.mpeg.anc_ptr.stream = stream;
         this.mpeg.ptr.stream = stream;
-        this.frame = JSON.parse(this.preFrame);
+        // this.frame = JSON.parse(this.preFrame);
     } else {
         this.stream = new Mad.BufferStream(arrayBuffer);
         this.mpeg = new Mad.Stream(new Mad.SubStream(this.stream, 0, this.stream.state['amountRead']));
         this.frame = new Mad.Frame();
+        this.channelCount = 0;
     }
     this.endIndex = endIndex;
 }
 
 //记录数据流状态
-Mad.Decoder.prototype.copyMpegData = function(){
+Mad.Decoder.prototype.copyMpegData = function() {
     this.mpegData = {};
     this.mpegData.anc_bitlen = this.mpegData.anc_bitlen;
     this.mpegData.anc_ptr = {
@@ -144,8 +147,8 @@ Mad.Decoder.prototype.copyMpegData = function(){
 }
 
 //重现数据流状态
-Mad.Decoder.prototype.pasteMpegData = function(){
-    for(var key in this.mpegData){
+Mad.Decoder.prototype.pasteMpegData = function() {
+    for (var key in this.mpegData) {
         this.mpeg[key] = this.mpegData[key];
     }
 }
