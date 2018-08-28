@@ -170,6 +170,8 @@ define(function(require, exports, module) {
                         if(redoCount > 5){
                             return;
                         }
+                        redoCount++;
+                        console.log('decode fail...redo',redoCount);
                         arrayBuffer = arrayBuffer.slice(100);
                         arrayBuffer = self._fixFileBlock(arrayBuffer);
                         self.decoder.decode({
@@ -179,8 +181,6 @@ define(function(require, exports, module) {
                             beginIndex: beginIndex,
                             endIndex: endIndex
                         });
-                        redoCount++;
-                        console.log('decode fail...redo',redoCount);
                     }
                     function _nextDecode(result, totalBuffer, minSize, audioInfo) {
                         if (!result.exceed) {
