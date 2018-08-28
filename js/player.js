@@ -90,6 +90,9 @@ define(function(require, exports, module) {
                     var arrayBuffer = result.arrayBuffer;
                     var beginIndex = result.beginIndex;
                     var endIndex = result.endIndex;
+                    if(negative){
+                        self.decoder.destory();
+                    }
                     self.decoder.decode({
                         onsuccess: _onsuccess,
                         onerror: _onerror,
@@ -560,7 +563,7 @@ define(function(require, exports, module) {
                         }
                         return;
                     }else if(this.pause){
-                        this.resumeTime = -1；
+                        this.resumeTime = -1;
                         this.hasPlayed = false;
                     }
                     this.totalBuffer = this.audioContext.createBuffer(this.numberOfChannels, this.bufferLength, this.sampleRate);
