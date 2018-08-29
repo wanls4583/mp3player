@@ -1,0 +1,55 @@
+<html>
+<meta charset="utf-8">
+
+<body>
+    <audio src=""></audio>
+</body>
+<script type="text/javascript">
+var audio = document.querySelector('audio');
+if (window.MediaSource) {
+    var mediaSource = new MediaSource();
+    audio.src = URL.createObjectURL(mediaSource);
+    mediaSource.addEventListener('sourceopen', sourceOpen);
+} else {
+    console.log("The Media Source Extensions API is not supported.")
+}
+
+function sourceOpen(e) {
+    URL.revokeObjectURL(audio.src);
+    // 设置 媒体的编码类型
+    var mime = 'audio/mpeg';
+    var mediaSource = e.target;
+    var sourceBuffer = mediaSource.addSourceBuffer(mime);
+    var videoUrl = '/test/res/test.mp3';
+
+    function load(begin, end, cb) {
+        var request = new XMLHttpRequest();
+        request.open('GET', videoUrl, true);
+        request.responseType = 'arraybuffer';
+        request.onload = function() {
+            cb(request)
+        }
+        request.setRequestHeader("Range", 'bytes=' + begin + '-' + end);
+        request.send();
+    }
+
+    load(0, 100000, function(request) {
+        sourceBuffer.addEventListener('updateend', function(e) {
+            if (!sourceBuffer.updating && mediaSource.readyState === 'open') {
+                audio.play();
+            }
+        });
+        sourceBuffer.appendBuffer(request.response);
+        load(100001,'', function(request) {
+	        sourceBuffer.addEventListener('updateend', function(e) {
+	            mediaSource.endOfStream();
+	        });
+	        sourceBuffer.appendBuffer(request.response);
+	    });
+    });
+
+
+}
+</script>
+
+</html>
