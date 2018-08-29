@@ -90,8 +90,8 @@ define(function(require, exports, module) {
                     var arrayBuffer = result.arrayBuffer;
                     var beginIndex = result.beginIndex;
                     var endIndex = result.endIndex;
-                    if(negative){
-                        self.decoder.destory();
+                    if (negative) {
+                        self.decoder.kill();
                     }
                     self.decoder.decode({
                         onsuccess: _onsuccess,
@@ -126,6 +126,7 @@ define(function(require, exports, module) {
                             Util.log('解码花费:', new Date().getTime() - decodeBeginTime, 'ms');
                         }
                         if (self.seeking) {
+                            self.preBuffer = null;
                             self.seeking = false;
                             self.totalBuffer.dataOffset = self.totalBuffer.dataBegin = self.totalBuffer.dataEnd = (self.totalBuffer.length * result.beginIndex / indexSize) >> 0;
                             self._copyPCMData(buffer);
@@ -162,16 +163,16 @@ define(function(require, exports, module) {
                         }
                     }
                     //解码失败回调
-                    function _onerror(){
+                    function _onerror() {
                         if (beginDecodeTime != self.beginDecodeTime) {
                             return;
                         }
                         //最多重试3次
-                        if(redoCount > 5){
+                        if (redoCount > 5) {
                             return;
                         }
                         redoCount++;
-                        console.log('decode fail...redo',redoCount);
+                        console.log('decode fail...redo', redoCount);
                         arrayBuffer = arrayBuffer.slice(100);
                         arrayBuffer = self._fixFileBlock(arrayBuffer);
                         self.decoder.decode({
@@ -182,6 +183,7 @@ define(function(require, exports, module) {
                             endIndex: endIndex
                         });
                     }
+
                     function _nextDecode(result, totalBuffer, minSize, audioInfo) {
                         if (!result.exceed) {
                             self._decodeAudioData(result.beginIndex, result.endIndex - result.beginIndex + 1 + self.cacheFrameSize, null, beginDecodeTime);
@@ -208,13 +210,13 @@ define(function(require, exports, module) {
                 //展示前后衔接处波形图，帮助分析
                 if (this.preBuffer) {
                     var d1 = this.preBuffer.getChannelData(0).slice(-1152 * 2);
-                    var d2 = _buffer.getChannelData(0).slice(1152, 1152 * 3);
+                    var d2 = _buffer.getChannelData(0).slice(0, 1152 * 2);
                     var ctx = document.querySelector('#canvas').getContext("2d");
                     ctx.clearRect(0, 0, ctx.canvas.width, 200);
                     ctx.beginPath();
-                    ctx.moveTo(0, 50);
+                    ctx.moveTo(0, 100);
                     for (var i = 0; i < d1.length; i++) {
-                        var h = d1[i] * 100 + 50;
+                        var h = d1[i] * 100 + 100;
                         ctx.lineTo(i, h);
                     }
                     ctx.strokeStyle = 'blue';
@@ -222,9 +224,9 @@ define(function(require, exports, module) {
                     ctx.closePath();
 
                     ctx.beginPath();
-                    ctx.moveTo(d1.length, 50);
+                    ctx.moveTo(d1.length - 1, h);
                     for (var i = 0; i < d2.length; i++) {
-                        var h = d2[i] * 100 + 50;
+                        var h = d2[i] * 100 + 100;
                         ctx.lineTo(i + d1.length, h);
                     }
                     ctx.strokeStyle = 'red';
@@ -521,7 +523,7 @@ define(function(require, exports, module) {
                 }
                 var u8a = new Uint8Array(arrayBuffer);
                 //第一帧数据清零
-                for (var i = 4; i < begeinExtraLength - mainDataOffset; i++){
+                for (var i = 4; i < begeinExtraLength - mainDataOffset; i++) {
                     u8a[i] = 0;
                 }
                 return arrayBuffer;
@@ -562,7 +564,7 @@ define(function(require, exports, module) {
                             this._play(startTime);
                         }
                         return;
-                    }else if(this.pause){
+                    } else if (this.pause) {
                         this.resumeTime = -1;
                         this.hasPlayed = false;
                     }
@@ -716,11 +718,11 @@ define(function(require, exports, module) {
                     errorCb();
                     Player.error = 'parse audioInfo failed';
                 }
-            })
-            /*.catch(function() {
-                            Player.error = 'load audioInfo failed';
-                            errorCb();
-                        })*/
+            }).catch(function(e) {
+                Player.error = 'load audioInfo failed';
+                errorCb();
+                console.log(e);
+            });
         }
         return new _Player(_url, opt);
     }
