@@ -67,7 +67,7 @@ Mad.Decoder.prototype.decode = function(opt) {
         for (var i = 0; i < 20; i++) {
             if (self.mpeg.bufend - self.mpeg.next_frame <= (self.mpeg.next_frame - self.mpeg.this_frame) * 4) {
                 buffer.duration = buffer.length / buffer.sampleRate;
-                console.log('success_decode', buffer.length);
+                // console.log('success_decode', buffer.length);
                 self.onsuccess && self.onsuccess(buffer);
                 _compelete();
                 buffer = null;
@@ -98,7 +98,7 @@ Mad.Decoder.prototype.decode = function(opt) {
     function _compelete() {
         clearTimeout(self.decodeTimmer);
         self.decoding = false;
-        console.log('cost', Date.now() - startTime, 'ms', 'duration', buffer.duration);
+        // console.log('cost', Date.now() - startTime, 'ms', 'duration', buffer.duration);
         if (self.decodeQue.length) {
             self.decode(self.decodeQue.shift());
         }
