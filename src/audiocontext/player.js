@@ -14,7 +14,7 @@ var url = ''; //音频链接
 var emptyUrl = ''; //空音频链接（用于触发IOS上音频播放）
 var emptyCb = function() {};
 var decrypt = emptyCb; //解密函数
-var loadedmetaCb = emptyCb; //元数据请求完毕回调
+var loadedmetadataCb = emptyCb; //元数据请求完毕回调
 var updateTimeCb = emptyCb; //更新时间回调
 var playCb = emptyCb; //播放回调
 var pauseCb = emptyCb; //暂停回调
@@ -110,7 +110,7 @@ var player = {
                     return;
                 }
                 if (!self.bufferLength) {
-                    self.bufferLength = Math.ceil(audioInfo.totalTime * buffer.sampleRate);
+                    self.bufferLength = Math.ceil(audioInfo.duration * buffer.sampleRate);
                 }
                 if (!self.numberOfChannels) {
                     self.numberOfChannels = buffer.numberOfChannels;
@@ -129,7 +129,7 @@ var player = {
                     self.totalBuffer.dataOffset = self.totalBuffer.dataBegin = self.totalBuffer.dataEnd = (self.totalBuffer.length * result.beginIndex / indexSize) >> 0;
                     self._copyPCMData(buffer);
                     if (self.hasPlayed && !self.pause) {
-                        self._play(self.totalBuffer.dataBegin / self.totalBuffer.length * audioInfo.totalTime);
+                        self._play(self.totalBuffer.dataBegin / self.totalBuffer.length * audioInfo.duration);
                     }
                 } else {
                     self._copyPCMData(buffer);
@@ -269,7 +269,7 @@ var player = {
         this.timeoutIds.updateIntervalId = setInterval(function() {
             var time = self.audioContext.currentTime - self.beginTime;
             var currentTime = time + self.offsetTime;
-            if (self.audioInfo.toc && currentTime > self.audioInfo.totalTime) {
+            if (self.audioInfo.toc && currentTime > self.audioInfo.duration) {
                 self._end();
             }
             if (Math.round(currentTime) > self.currentTime) {
@@ -525,7 +525,7 @@ var player = {
         }
         if (this.totalBuffer) {
             var begin = this.totalBuffer.length * index / indexSize;
-            var startTime = index / indexSize * audioInfo.totalTime;
+            var startTime = index / indexSize * audioInfo.duration;
             if (begin > this.totalBuffer.dataBegin && begin + 5 * this.sampleRate < this.totalBuffer.dataEnd) {
                 if (this.pause) {
                     this.resumeTime = startTime;
@@ -594,15 +594,15 @@ Mp3Player.prototype._init = function(opt) {
     if (typeof opt.endCb == 'function') {
         endCb = opt.endCb;
     }
-    if (typeof opt.loadedmetaCb == 'function') {
-        loadedmetaCb = opt.loadedmetaCb;
+    if (typeof opt.loadedmetadataCb == 'function') {
+        loadedmetadataCb = opt.loadedmetadataCb;
     }
     if (typeof opt.errorCb == 'function') {
         errorCb = opt.errorCb;
     }
     AudioInfo.init(url, {
         decrypt: decrypt,
-        loadedmetaCb: loadedmetaCb
+        loadedmetadataCb: loadedmetadataCb
     }).then(function(audioInfo) {
         player._init(audioInfo);
         if (!audioInfo) {
@@ -651,7 +651,7 @@ Mp3Player.prototype.play = function() {
             player.waiting = false;
             playingCb();
         }
-        player._play(player.totalBuffer.dataBegin / player.totalBuffer.length * audioInfo.totalTime);
+        player._play(player.totalBuffer.dataBegin / player.totalBuffer.length * audioInfo.duration);
         player.pause = false;
         playCb();
     } else if ((player.pause == true || player.finished) && !player.waiting) {

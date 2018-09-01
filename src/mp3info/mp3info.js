@@ -7,7 +7,7 @@
  * audioInfo需要包括的字段:{
  *      fileSize: 音频文件大小(byte),
  *      frameSync: 同步头（16进制字符串）,
- *      totalTime: 总时长（秒）,
+ *      duration: 总时长（秒）,
  *      sampleRate: 采样率,
  *      audioDataOffset: audioData开始偏移量（相对于0字节位置）,
  *      totalSize: audioData总大小（仅当音频码率模式为VBR时返回）,
@@ -27,12 +27,12 @@ var MP3Info = {
         var self = this;
         var emptyFun = function() {};
         this.url = url;
-        this.decrypt = this.loadedmetaCb = emptyFun;
+        this.decrypt = this.loadedmetadataCb = emptyFun;
         this.indexSize = 100; //分区数，默认100
         this.audioInfo = {}; //存储mp3相关的信息
         if (typeof opt == 'object') {
             opt.decrypt && (this.decrypt = opt.decrypt);
-            opt.loadedmetaCb && (this.loadedmetaCb = opt.loadedmetaCb);
+            opt.loadedmetadataCb && (this.loadedmetadataCb = opt.loadedmetadataCb);
             opt.indexSize && (this.indexSize = opt.indexSize);
         }
         return new Promise(function(resolve, reject) {
@@ -47,12 +47,12 @@ var MP3Info = {
                 self.audioInfo.totalSize = header.totalBytes;
                 self.audioInfo.sampleRate = header.sampleRate;
                 self.audioInfo.frameSync = header.frameSync;
-                self.audioInfo.totalTime = header.totalDuration;
+                self.audioInfo.duration = header.totalDuration;
                 self.audioInfo.bitRate = header.bitRate;
                 if (!self.audioInfo.toc) { //cbr模式
                     return self._getFooterLength();
                 } else {
-                    self.loadedmetaCb(self.audioInfo);
+                    self.loadedmetadataCb(self.audioInfo.duration);
                     return self.audioInfo;
                 }
             } else {
@@ -103,8 +103,8 @@ var MP3Info = {
                     id3tag = new Mp3Id3Tag(arrayBuffer);
                     self.audioInfo.footerLength = id3tag.parseId3V1() + id3tag.parseApe();
                     self.audioInfo.totalSize = self.audioInfo.fileSize - self.audioInfo.audioDataOffset - self.audioInfo.footerLength;
-                    self.audioInfo.totalTime = self.audioInfo.totalSize * 8 / self.audioInfo.bitRate;
-                    self.loadedmetaCb(self.audioInfo);
+                    self.audioInfo.duration = self.audioInfo.totalSize * 8 / self.audioInfo.bitRate;
+                    self.loadedmetadataCb(self.audioInfo);
                     resolve(self.audioInfo);
                 }
             })

@@ -11,12 +11,15 @@ function resolve(dir) {
 
 module.exports = {
     devtool: '#cheap-module-eval-source-map',
-    entry: './src/example/demo.js',
+    entry: {
+        audiocontext: './src/example/audiocontext/demo.js',
+        mediasource: './src/example/mediasource/demo.js'
+    },
     output: {
         // 编译输出的根路径
         path: resolve('dist/example'),
         // 编译输出的文件名
-        filename: 'demo.min.js',
+        filename: '[name].min.js',
         // 正式发布环境下编译输出的发布路径
         // publicPath: './'
     },
@@ -48,23 +51,25 @@ module.exports = {
     },
     plugins: [
         new HtmlWebpackPlugin({
-            filename: 'index.html',
-            template: resolve('src/example/index.html')
+            filename: 'audiocontext/index.html',
+            template: resolve('src/example/audiocontext/index.html'),
+            chunks: ['audiocontext'],
+            inject: true 
+        }),
+        new HtmlWebpackPlugin({
+            filename: 'mediasource/index.html',
+            template: resolve('src/example/mediasource/index.html'),
+            chunks: ['mediasource'],
+            inject: true
         }),
         new CopyWebpackPlugin([
             {
-                from: 'src/example/res',
-                to: './res'
-            },
-            {
-                from: 'src/example/server.js',
-                to: './'
-            },
-            {
-                from: 'src/example/package.json',
+                from: 'src/example/',
                 to: './'
             }
-        ])
+        ],{
+            ignore: ['demo.js','index.html']
+        })
         // new uglify()
     ]
 }
