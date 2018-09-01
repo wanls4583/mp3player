@@ -1,8 +1,0 @@
-{
-  "devDependencies": {
-    "mime": "^2.3.1"
-  },
-  "scripts": {
-    "start": "node server"
-  }
-}

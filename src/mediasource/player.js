@@ -13,6 +13,7 @@ var player = {
         this.url = opt.url; //mp3文件地址
         this.audioInfo = opt.audioInfo; //mp3文件信息
         this.audio = opt.audio;
+        this.decrypt = opt.decrypt || function(){}; //解密函数
         this.fileSize = this.audioInfo.fileSize; //文件总大小
         this.blockSize = 1024 * 1024; //每次加载1M
         this.end = -1; //上个片段的末尾偏移量
@@ -52,14 +53,17 @@ var player = {
         requestRange(this.url, this.begin, this.end, {
             onsuccess: function(request) {
                 var buffer = request.response;
+                //数据解密
+                self.decrypt(buffer);
                 self.sourceBuffer.appendBuffer(buffer);
             }
         });
     }
 }
 
-function Mp3Player(_url, opt) {
-    this.url = _url;
+function Mp3Player(url, opt) {
+    this.url = url;
+    opt.audio = new window.Audio();
     this._init(opt);
     return new Audio(opt);
 }
@@ -77,7 +81,8 @@ Mp3Player.prototype._init = function(opt) {
         player._init({
             url: self.url,
             audioInfo: audioInfo,
-            audio: opt.audio
+            audio: opt.audio,
+            decrypt: opt.decrypt
         });
         if (!audioInfo) {
             opt.errorCb && errorCb('parse audioInfo failed');

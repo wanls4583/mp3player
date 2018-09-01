@@ -11,6 +11,8 @@
     "webpack-dev-server": "^2.11.1"
   },
   "scripts": {
-    "start": "webpack-dev-server --hot --inline"
+    "dev": "webpack-dev-server --hot --inline --config webpack.dev.config.js",
+    "build:prod": "webpack --config webpack.prod.config.js",
+    "build:example": "webpack --config webpack.example.config.js"
   }
 }

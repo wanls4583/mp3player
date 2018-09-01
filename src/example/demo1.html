@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=750">
+    <title>mp3音频解析</title>
+
+    <style type="text/css">
+    .wrap {
+        margin-top: 100px;
+        text-align: center;
+        font-size: 24px;
+    }
+
+    #left_time {
+        display: inline-block;
+        width: 100px;
+        margin: 0 20px;
+        text-align: right;
+        vertical-align: middle;
+    }
+
+    #right_time {
+        display: inline-block;
+        width: 100px;
+        margin: 0 20px;
+        text-align: left;
+        vertical-align: middle;
+    }
+
+    #myRange {
+        width: 450px;
+        height: 50px;
+        -webkit-tap-highlight-color: transparent;
+        vertical-align: middle;
+    }
+
+    button {
+        margin-top: 50px;
+        font-size: 30px;
+    }
+
+    canvas {
+        margin-top: 20px;
+        width: 100%;
+        height: 300px;
+    }
+    </style>
+</head>
+
+<body style="text-align: center">
+    <div class="wrap">
+        <span id="left_time">00:00:00</span>
+        <input value=0 type="range" id="myRange"><span id="right_time"></span>
+        <br>
+        <button class="play">播放</button>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+        <button class="pause">暂停</button>
+    </div>
+</body>
+
+</html>

@@ -206,32 +206,32 @@ var player = {
         this.totalBuffer.dataEnd = offset + _buffer.length;
 
         //展示前后衔接处波形图，帮助分析
-        if (this.preBuffer) {
-            var d1 = this.preBuffer.getChannelData(0).slice(-1152 * 2);
-            var d2 = _buffer.getChannelData(0).slice(0, 1152 * 2);
-            var ctx = document.querySelector('#canvas').getContext("2d");
-            ctx.clearRect(0, 0, ctx.canvas.width, 200);
-            ctx.beginPath();
-            ctx.moveTo(0, 100);
-            for (var i = 0; i < d1.length; i++) {
-                var h = d1[i] * 100 + 100;
-                ctx.lineTo(i, h);
-            }
-            ctx.strokeStyle = 'blue';
-            ctx.stroke();
-            ctx.closePath();
+        // if (this.preBuffer) {
+        //     var d1 = this.preBuffer.getChannelData(0).slice(-1152 * 2);
+        //     var d2 = _buffer.getChannelData(0).slice(0, 1152 * 2);
+        //     var ctx = document.querySelector('#canvas').getContext("2d");
+        //     ctx.clearRect(0, 0, ctx.canvas.width, 200);
+        //     ctx.beginPath();
+        //     ctx.moveTo(0, 100);
+        //     for (var i = 0; i < d1.length; i++) {
+        //         var h = d1[i] * 100 + 100;
+        //         ctx.lineTo(i, h);
+        //     }
+        //     ctx.strokeStyle = 'blue';
+        //     ctx.stroke();
+        //     ctx.closePath();
 
-            ctx.beginPath();
-            ctx.moveTo(d1.length - 1, h);
-            for (var i = 0; i < d2.length; i++) {
-                var h = d2[i] * 100 + 100;
-                ctx.lineTo(i + d1.length, h);
-            }
-            ctx.strokeStyle = 'red';
-            ctx.stroke();
-            ctx.closePath();
-        }
-        this.preBuffer = _buffer;
+        //     ctx.beginPath();
+        //     ctx.moveTo(d1.length - 1, h);
+        //     for (var i = 0; i < d2.length; i++) {
+        //         var h = d2[i] * 100 + 100;
+        //         ctx.lineTo(i + d1.length, h);
+        //     }
+        //     ctx.strokeStyle = 'red';
+        //     ctx.stroke();
+        //     ctx.closePath();
+        // }
+        // this.preBuffer = _buffer;
     },
     //播放
     _play: function(startTime) {
