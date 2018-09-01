@@ -4,9 +4,9 @@
  */
 
 
-import requestRange from './common/range';
-import Util from './common/util';
-import BitStream from './common/bitstream';
+import requestRange from '../common/range';
+import Util from '../common/util';
+import BitStream from '../common/bitstream';
 import Decoder from './decoder/decoder';
 
 var indexSize = 100; //区块个数（根据时间平均分为100份,默认100）

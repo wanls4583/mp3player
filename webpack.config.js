@@ -2,6 +2,7 @@ var path = require('path');
 var HtmlWebpackPlugin = require('html-webpack-plugin');
 var webpack = require('webpack');
 var uglify = require('uglifyjs-webpack-plugin');
+var CopyWebpackPlugin = require('copy-webpack-plugin');
 
 // 拼接我们的工作区路径为一个绝对路径
 function resolve(dir) {
@@ -20,7 +21,7 @@ module.exports = {
         // publicPath: './'
     },
     devServer: {
-        contentBase: resolve('dist'),
+        contentBase: resolve('src/example'),
         historyApiFallback: true,
         hot: true,
         inline: true,
@@ -40,9 +41,9 @@ module.exports = {
             test: /\.js$/,
             loader: 'babel-loader',
             include: [resolve('src'), resolve('test')]
-        },{
-            test:/\.css$/,
-            use:['style-loader','css-loader']
+        }, {
+            test: /\.css$/,
+            use: ['style-loader', 'css-loader']
         }]
     },
     plugins: [
@@ -50,6 +51,20 @@ module.exports = {
             filename: 'index.html',
             template: resolve('src/example/index.html')
         }),
+        new CopyWebpackPlugin([
+            {
+                from: 'src/example/res',
+                to: './res'
+            },
+            {
+                from: 'src/example/server.js',
+                to: './'
+            },
+            {
+                from: 'src/example/package.json',
+                to: './'
+            }
+        ])
         // new uglify()
     ]
 }
