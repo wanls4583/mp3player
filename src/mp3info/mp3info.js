@@ -27,12 +27,12 @@ var MP3Info = {
         var self = this;
         var emptyFun = function() {};
         this.url = url;
-        this.decrypt = this.loadedmetadataCb = emptyFun;
+        this.decrypt = this.onloadedmetadata = emptyFun;
         this.indexSize = 100; //分区数，默认100
         this.audioInfo = {}; //存储mp3相关的信息
         if (typeof opt == 'object') {
             opt.decrypt && (this.decrypt = opt.decrypt);
-            opt.loadedmetadataCb && (this.loadedmetadataCb = opt.loadedmetadataCb);
+            opt.onloadedmetadata && (this.onloadedmetadata = opt.onloadedmetadata);
             opt.indexSize && (this.indexSize = opt.indexSize);
         }
         return new Promise(function(resolve, reject) {
@@ -52,7 +52,7 @@ var MP3Info = {
                 if (!self.audioInfo.toc) { //cbr模式
                     return self._getFooterLength();
                 } else {
-                    self.loadedmetadataCb(self.audioInfo.duration);
+                    self.onloadedmetadata(self.audioInfo.duration);
                     return self.audioInfo;
                 }
             } else {
@@ -104,7 +104,7 @@ var MP3Info = {
                     self.audioInfo.footerLength = id3tag.parseId3V1() + id3tag.parseApe();
                     self.audioInfo.totalSize = self.audioInfo.fileSize - self.audioInfo.audioDataOffset - self.audioInfo.footerLength;
                     self.audioInfo.duration = self.audioInfo.totalSize * 8 / self.audioInfo.bitRate;
-                    self.loadedmetadataCb(self.audioInfo);
+                    self.onloadedmetadata(self.audioInfo);
                     resolve(self.audioInfo);
                 }
             })

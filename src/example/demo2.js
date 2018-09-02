@@ -1,4 +1,3 @@
-import MP3Info from '../mp3info/mp3info';
 import Player from '../../index';
 import Util from '../common/util';
 
@@ -7,9 +6,8 @@ var myRange = document.getElementById("myRange");
 var audio = document.querySelector('audio');
 window.mp3 = new Player('res/test.mp3', {
     usemediasource: true, //使用mediasource
-    AudioInfo: MP3Info,
     audio: audio,
-    loadedmetadataCb: function(duration) {
+    onloadedmetadata: function(duration) {
         var data = '';
         totalTime = duration;
         if (validateDuration(totalTime)) {
@@ -18,9 +16,9 @@ window.mp3 = new Player('res/test.mp3', {
             document.getElementById("right_time").innerHTML = data;
         }
     },
-    updateTimeCb: function(seconds) {
+    ontimeupdate: function(seconds) {
         if (seconds > totalTime || !validateDuration(totalTime)) {
-            loadedmetadataCb(audio.duration);
+            onloadedmetadata(audio.duration);
             return;
         }
         var date = Util.formatCountDown(seconds);
@@ -28,25 +26,25 @@ window.mp3 = new Player('res/test.mp3', {
         document.getElementById("left_time").innerHTML = date;
         myRange.value = Math.round((seconds / totalTime) * 100) || 0;
     },
-    playCb: function() {
+    onplay: function() {
         console.log('开始播放');
     },
-    pauseCb: function() {
+    onpause: function() {
         console.log('播放暂停');
     },
-    waitingCb: function() {
+    onwaiting: function() {
         console.log('加载中');
     },
-    playingCb: function() {
+    onplaying: function() {
         console.log('缓冲结束');
     },
-    endCb: function() {
+    onend: function() {
         myRange.value = 0;
         document.getElementById("left_time").innerHTML = '00:00:00'
         console.log('播放结束');
     },
     //该回调用来解密加密过的字节
-    decrypt: function(arrayBuffer) {
+    onbeforedecode: function(arrayBuffer) {
         // var arr = new Uint8Array(arrayBuffer);
         // for (var i = 0; i < arr.length; i++) {
         //     arr[i] = arr[i] ^ 255;

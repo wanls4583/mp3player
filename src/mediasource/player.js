@@ -1,5 +1,6 @@
 import Audio from '../audio/index';
 import requestRange from '../common/range';
+import MP3Info from '../mp3info/mp3info';
 
 var player = {
     /**
@@ -13,7 +14,7 @@ var player = {
         this.url = opt.url; //mp3文件地址
         this.audioInfo = opt.audioInfo; //mp3文件信息
         this.audio = opt.audio;
-        this.decrypt = opt.decrypt || function(){}; //解密函数
+        this.onbeforedecode = opt.onbeforedecode || function(){}; //解密函数
         this.fileSize = this.audioInfo.fileSize; //文件总大小
         this.blockSize = 1024 * 1024; //每次加载1M
         this.end = -1; //上个片段的末尾偏移量
@@ -54,7 +55,7 @@ var player = {
             onsuccess: function(request) {
                 var buffer = request.response;
                 //数据解密
-                self.decrypt(buffer);
+                self.onbeforedecode(buffer);
                 self.sourceBuffer.appendBuffer(buffer);
             }
         });
@@ -69,20 +70,19 @@ function Mp3Player(url, opt) {
 }
 
 Mp3Player.prototype._init = function(opt) {
-    var AudioInfo = opt.AudioInfo;
-    var loadedmetadataCb = opt.loadedmetadataCb;
+    var onloadedmetadata = opt.onloadedmetadata;
     var self = this;
-    //使用mediasource方式，Aduio对象的loadedmetadata事件可能获取不到时长，因此使用AudioInfo去回调loadedmetadataCb
-    opt.loadedmetadataCb = null;
-    return AudioInfo.init(this.url, {
-        loadedmetadataCb: loadedmetadataCb,
-        decrypt: opt.decrypt
+    //on使用mediasource方式，Aduio对象的loadedmetadata事件可能获取不到时长，因此使用AudioInfo去回调loadedmetadata
+    opt.onloadedmetadata = null;
+    MP3Info.init(this.url, {
+        onloadedmetadata: onloadedmetadata,
+        onbeforedecode: opt.onbeforedecode
     }).then(function(audioInfo) {
         player._init({
             url: self.url,
             audioInfo: audioInfo,
             audio: opt.audio,
-            decrypt: opt.decrypt
+            onbeforedecode: opt.onbeforedecode
         });
         if (!audioInfo) {
             opt.errorCb && errorCb('parse audioInfo failed');

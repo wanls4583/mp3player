@@ -1,6 +1,7 @@
 var path = require('path');
 var HtmlWebpackPlugin = require('html-webpack-plugin');
 var webpack = require('webpack');
+var CopyWebpackPlugin = require('copy-webpack-plugin');
 
 // 拼接我们的工作区路径为一个绝对路径
 function resolve(dir) {
@@ -20,7 +21,7 @@ module.exports = {
         filename: '[name].min.js',
     },
     devServer: {
-        contentBase: resolve('src/example'),
+        contentBase: resolve('dist/example'),
         historyApiFallback: true,
         hot: true,
         inline: true,
@@ -57,6 +58,14 @@ module.exports = {
             template: resolve('src/example/demo2.html'),
             chunks: ['demo2'],
             inject: true
+        }),
+        new CopyWebpackPlugin([
+            {
+                from: 'src/example/',
+                to: './'
+            }
+        ],{
+            ignore: ['demo1.js','demo2.js','demo1.html','demo2.html']
         })
     ]
 }

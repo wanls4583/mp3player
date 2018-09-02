@@ -1,17 +1,17 @@
 function Audio(options) {
     var emptyFn = function() {};
-    var loadstartCb = null;
-    var loadedmetadataCb = null; //更新总时长回调
-    var updateTimeCb = null; //更新时间回调
-    var updateBarCb = null; // 更新进度条回调
-    var waitingCb = null; //开始播放或播放过程中由于缓冲暂停时回调
-    var playingCb = null; //开始播放或播放过程中缓冲完成回调
-    var canplayCb = null; //当前位置可播放时回调
-    var seekingCb = null; //寻址中回调
-    var playCb = null; //播放回调
-    var endCb = null; //播放完成
-    var pauseCb = null; //暂停回调
-    var errorCb = null; //错误回调
+    var onloadstart = null;
+    var onloadedmetadata = null; //更新总时长回调
+    var ontimeupdate = null; //更新时间回调
+    var onupdateBar = null; // 更新进度条回调
+    var onwaiting = null; //开始播放或播放过程中由于缓冲暂停时回调
+    var onplaying = null; //开始播放或播放过程中缓冲完成回调
+    var oncanplay = null; //当前位置可播放时回调
+    var onseeking = null; //寻址中回调
+    var onplay = null; //播放回调
+    var onended = null; //播放完成
+    var onpause = null; //暂停回调
+    var onerror = null; //错误回调
     var audio = null; //音频对象
     var playBtn = null; //播放按钮
     var pauseBtn = null; //暂停按钮
@@ -25,18 +25,18 @@ function Audio(options) {
     var allListener = [];
     var AudioObj = {
         init: function(options) {
-            updateTimeCb = options.updateTimeCb || emptyFn;
-            seekingCb = options.seekingCb || emptyFn;
-            waitingCb = options.waitingCb || emptyFn;
-            playingCb = options.playingCb || emptyFn;
-            canplayCb = options.canplayCb || emptyFn;
-            loadstartCb = options.loadstartCb || emptyFn;
-            playCb = options.playCb || emptyFn;
-            endCb = options.endCb || emptyFn;
-            pauseCb = options.pauseCb || emptyFn;
-            updateBarCb = options.updateBarCb || emptyFn;
-            loadedmetadataCb = options.loadedmetadataCb || emptyFn;
-            errorCb = options.errorCb || emptyFn;
+            ontimeupdate = options.ontimeupdate || emptyFn;
+            onseeking = options.onseeking || emptyFn;
+            onwaiting = options.onwaiting || emptyFn;
+            onplaying = options.onplaying || emptyFn;
+            oncanplay = options.oncanplay || emptyFn;
+            onloadstart = options.onloadstart || emptyFn;
+            onplay = options.onplay || emptyFn;
+            onended = options.onended || emptyFn;
+            onpause = options.onpause || emptyFn;
+            onupdateBar = options.onupdateBar || emptyFn;
+            onloadedmetadata = options.onloadedmetadata || emptyFn;
+            onerror = options.onerror || emptyFn;
             audio = options.audio;
             forceSeek = options.forceSeek || false;
             playBtn = options.playBtn;
@@ -60,7 +60,7 @@ function Audio(options) {
         seek: function(percent, isTime, ifStop) {
             if (!audio.duration) {
                 if (!isTime)
-                    updateBarCb(percent);
+                    onupdateBar(percent);
                 return;
             }
             var self = this;
@@ -79,11 +79,11 @@ function Audio(options) {
             }
             if (!this._ifSeekable(currentTime)) {
                 console.log('can not seek');
-                updateBarCb(percent);
+                onupdateBar(percent);
                 return;
             }
-            updateTimeCb(currentTime);
-            updateBarCb(percent);
+            ontimeupdate(currentTime);
+            onupdateBar(percent);
             audio.currentTime = currentTime;
             if (forceSeek) {
                 seeking = true;
@@ -104,14 +104,14 @@ function Audio(options) {
          */
         updateTime: function(percent, isTime) {
             if (isTime) {
-                updateTimeCb(percent);
+                ontimeupdate(percent);
                 return;
             } else if (!audio.duration || !audio.seekable.length) {
                 return;
             } else {
                 percent = percent > 100 ? 100 : percent;
                 percent = percent < 0 ? 0 : percent;
-                updateTimeCb(percent * audio.duration / 100);
+                ontimeupdate(percent * audio.duration / 100);
             }
         },
         /**
@@ -152,33 +152,33 @@ function Audio(options) {
         _bindAudioEvent: function() {
             var self = this;
             this._addEvent(audio, 'loadstart', function() {
-                loadstartCb();
+                onloadstart();
                 console.log('loadstart');
             });
             this._addEvent(audio, 'play', function() {
-                playCb();
+                onplay();
                 console.log('play');
             });
             this._addEvent(audio, 'ended', function() {
-                endCb();
+                onended();
                 console.log('ended');
             });
             this._addEvent(audio, 'pause', function() {
-                pauseCb();
+                onpause();
                 console.log('puase');
             });
             this._addEvent(audio, 'waiting', function() {
-                waitingCb();
+                onwaiting();
                 console.log('waiting');
             });
             this._addEvent(audio, 'playing', function() {
                 if (this.readyState == 4) {
-                    playingCb();
+                    onplaying();
                 }
                 console.log('playing');
             });
             this._addEvent(audio, 'seeking', function() {
-                seekingCb();
+                onseeking();
                 console.log('seeking');
             });
             if (forceSeek) {
@@ -192,14 +192,14 @@ function Audio(options) {
                 });
             }
             this._addEvent(audio, 'loadedmetadata', function() {
-                loadedmetadataCb(audio.duration);
+                onloadedmetadata(audio.duration);
                 //兼容ios首次必须交互触发canplay事件
-                canplayCb();
+                oncanplay();
                 canplay = true;
                 console.log('loadedmetadata');
             })
             this._addEvent(audio, 'canplay', function() {
-                canplayCb();
+                oncanplay();
                 canplay = true;
                 console.log('canplay');
             });
@@ -209,20 +209,20 @@ function Audio(options) {
                 var percent = 0;
                 var time = audio.currentTime;
                 if (Math.abs(time - currentTime) > 0.05 && !audio.seeking) {
-                    updateTimeCb(time, true);
+                    ontimeupdate(time, true);
                 } else {
-                    updateTimeCb(time);
+                    ontimeupdate(time);
                 }
                 if (audio.duration) {
                     percent = time / audio.duration * 100;
                 }
-                updateBarCb(percent);
+                onupdateBar(percent);
             });
             this._addEvent(audio, 'stalled', function(e) {
                 console.log('stalled');
             });
             this._addEvent(audio, 'error', function(e) {
-                errorCb();
+                onerror();
                 console.log('error');
             });
             this._addEvent(audio, 'abort', function(e) {
