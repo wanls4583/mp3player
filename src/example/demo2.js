@@ -3,10 +3,8 @@ import Util from '../common/util';
 
 var totalTime = 0;
 var myRange = document.getElementById("myRange");
-var audio = document.querySelector('audio');
 window.mp3 = new Player('res/test.mp3', {
     usemediasource: true, //使用mediasource
-    audio: audio,
     onloadedmetadata: function(duration) {
         var data = '';
         totalTime = duration;
@@ -43,7 +41,7 @@ window.mp3 = new Player('res/test.mp3', {
         document.getElementById("left_time").innerHTML = '00:00:00'
         console.log('播放结束');
     },
-    //该回调用来解密加密过的字节
+    //可对数据进行二次处理，例如解密等工作
     onbeforedecode: function(arrayBuffer) {
         // var arr = new Uint8Array(arrayBuffer);
         // for (var i = 0; i < arr.length; i++) {

@@ -1,4 +1,22 @@
 {
+  "name": "mp3player",
+  "version": "1.0.0",
+  "description": "A mp3 player,get data by ajax and play by audiocontext or mediasource.it can download and reprocessing while playing",
+  "main": "dist/player.min.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wanls4583/mp3player.git"
+  },
+  "keywords": [
+    "mp3",
+    "player",
+    "audio",
+    "decode",
+    "mediasource",
+    "audiocontext"
+  ],
+  "author": "lisong",
+  "license": "ISC",
   "devDependencies": {
     "babel-core": "^6.26.3",
     "babel-loader": "^7.1.5",

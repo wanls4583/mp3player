@@ -626,6 +626,7 @@ Mp3Player.prototype.play = function() {
     var audioContext = this.player.audioContext;
     var audioInfo = this.player.audioInfo;
     clearTimeout(this.player.timeoutIds.playTimoutId);
+    //ios需要手动触发音频设备
     if (isIos && !this.hasClick) {
         audio.play();
         this.hasClick = true;
