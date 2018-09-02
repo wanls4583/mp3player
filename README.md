@@ -1,6 +1,6 @@
 # mp3player
 
-> 一个用来播放 mp3 音频文件的网页播放器，通过 ajax 获取数据，使用 audiocontext 或 mediasource 播放，在播放的过程中可进行数据的拉取和二次处理。
+> 一个用来播放 mp3 音频文件的网页播放器，通过 ajax 获取数据，使用 audiocontext 或 mediasource 播放，可边播放边下载，下载完成后可对音频数据进行二次处理。
 
 ## 内容
 
