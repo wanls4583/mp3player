@@ -1,7 +1,6 @@
 var path = require('path');
 var HtmlWebpackPlugin = require('html-webpack-plugin');
 var webpack = require('webpack');
-var uglify = require('uglifyjs-webpack-plugin');
 var CopyWebpackPlugin = require('copy-webpack-plugin');
 
 // 拼接我们的工作区路径为一个绝对路径
@@ -10,7 +9,7 @@ function resolve(dir) {
 }
 
 module.exports = {
-    devtool: '#cheap-module-eval-source-map',
+    devtool: '#source-map',
     entry: {
         'demo1': './src/example/demo1.js',
         'demo2': './src/example/demo2.js'
@@ -59,7 +58,6 @@ module.exports = {
             }
         ],{
             ignore: ['demo1.js','demo2.js','demo1.html','demo2.html']
-        }),
-        new uglify()
+        })
     ]
 }

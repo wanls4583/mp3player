@@ -1,6 +1,6 @@
 {
   "name": "mp3player",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A mp3 player,get data by ajax and play by audiocontext or mediasource.it can download and reprocessing while playing",
   "main": "dist/player.min.js",
   "repository": {
