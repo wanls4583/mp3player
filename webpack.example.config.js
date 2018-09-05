@@ -2,6 +2,7 @@ var path = require('path');
 var HtmlWebpackPlugin = require('html-webpack-plugin');
 var webpack = require('webpack');
 var CopyWebpackPlugin = require('copy-webpack-plugin');
+var uglify = require('uglifyjs-webpack-plugin');
 
 // 拼接我们的工作区路径为一个绝对路径
 function resolve(dir) {
@@ -58,6 +59,9 @@ module.exports = {
             }
         ],{
             ignore: ['demo1.js','demo2.js','demo1.html','demo2.html']
+        }),
+        new uglify({
+            sourceMap: true
         })
     ]
 }

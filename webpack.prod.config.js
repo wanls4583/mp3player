@@ -1,5 +1,6 @@
 var path = require('path');
 var webpack = require('webpack');
+var uglify = require('uglifyjs-webpack-plugin');
 
 // 拼接我们的工作区路径为一个绝对路径
 function resolve(dir) {
@@ -31,5 +32,10 @@ module.exports = {
             loader: 'babel-loader',
             include: [resolve('src'), resolve('test')]
         }]
-    }
+    },
+    plugins:[
+        new uglify({
+            sourceMap: true
+        })
+    ]
 }
