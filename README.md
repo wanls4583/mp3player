@@ -56,9 +56,9 @@ npm run build:prod
 
 请查看[**`example`**](https://github.com/wanls4583/mp3player/tree/master/src/example)
 
-[**`aduiocontext oline demo`**](https://blog.lisong.hn.cn/code/mp3player/dist/example/demo1.html)
+[**`aduiocontext oline demo`**](https://blog.lisong.hn.cn/code/example/mp3player/demo1.html)
 
-[**`mediasource oline demo`**](https://blog.lisong.hn.cn/code/mp3player/dist/example/demo2.html)
+[**`mediasource oline demo`**](https://blog.lisong.hn.cn/code/example/mp3player/demo2.html)
 
 ## Player构造函数
 
