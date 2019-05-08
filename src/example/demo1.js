@@ -3,7 +3,12 @@ import Util from '../common/util';
 
 var totalTime = 0;
 var myRange = document.getElementById("myRange");
-window.mp3 = new Player('res/test.mp3', {
+var useEncode = false;
+var path = 'res/test.mp3';
+if (useEncode) {
+    path = 'http://localhost:8000/res/test.mp3'; //先在命令行下运行node server.js开启静态资源服务器
+}
+window.mp3 = new Player(path, {
     emptyUrl: 'res/empty.mp3',
     onloadedmetadata: function(duration) {
         var data = '';
@@ -43,10 +48,12 @@ window.mp3 = new Player('res/test.mp3', {
     },
     //可对数据进行二次处理，例如解密等工作
     onbeforedecode: function(arrayBuffer) {
-        // var arr = new Uint8Array(arrayBuffer);
-        // for (var i = 0; i < arr.length; i++) {
-        //     arr[i] = arr[i] ^ 255;
-        // }
+        if (useEncode) {
+            var arr = new Uint8Array(arrayBuffer);
+            for (var i = 0; i < arr.length; i++) {
+                arr[i] = arr[i] ^ 255;
+            }
+        }
     }
 });
 

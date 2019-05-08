@@ -31,7 +31,7 @@ var MP3Info = {
         this.indexSize = 100; //分区数，默认100
         this.audioInfo = {}; //存储mp3相关的信息
         if (typeof opt == 'object') {
-            opt.decrypt && (this.decrypt = opt.decrypt);
+            opt.onbeforedecode && (this.decrypt = opt.onbeforedecode);
             opt.onloadedmetadata && (this.onloadedmetadata = opt.onloadedmetadata);
             opt.indexSize && (this.indexSize = opt.indexSize);
         }

@@ -53,7 +53,7 @@ function sendFile(realPath,req,res){
             var raw = fs.createReadStream(realPath, { 'start': rangeData.start, 'end': rangeData.end });
             //状态码206
             res.writeHead(206, 'Partial Content', {
-                'Content-Type': mime.getType(path.basename(realPath)),
+                'Content-Type': mime.lookup(path.basename(realPath)),
                 'Content-Range': 'bytes ' + rangeData.start + '-' + rangeData.end + '/' + size,
                 'Content-Length': rangeData.chunkSize,
                 'Access-Control-Allow-Origin': '*',
@@ -62,9 +62,9 @@ function sendFile(realPath,req,res){
             });
             raw.on('data',function(chunk){
             	// 加密数据
-            	// for(let i=0; i<chunk.length; i++){
-            	// 	chunk[i] = chunk[i]^255;
-            	// }
+            	for(let i=0; i<chunk.length; i++){
+            		chunk[i] = chunk[i]^255;
+            	}
             	res.write(chunk);
             });
             raw.on('end', function(){
@@ -79,11 +79,11 @@ function sendFile(realPath,req,res){
         console.log('send media file:'+realPath);
     } else {
         res.writeHead(200, {
-            'Content-Type': mime.getType(path.basename(realPath)),
+            'Content-Type': mime.lookup(path.basename(realPath)),
             'Access-Control-Allow-Origin': '*',
             "Access-Control-Allow-Headers": "Content-Range,Range"
         });
-        if(req.method == 'get' || req.method == 'post'){
+        if(req.method.toLowerCase() == 'get' || req.method.toLowerCase() == 'post'){
             var file = fs.readFileSync(realPath);
             res.end(file);
             console.log('send static file:'+realPath);
