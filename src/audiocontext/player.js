@@ -27,10 +27,6 @@ var maxDecodeSize = 0.1 * 1024 * 1024; // 最大解码字节长度(默认8M)
 var isIos = navigator.userAgent.indexOf('iPhone') > -1;
 var AudioInfo = null;
 var audio = null;
-if (isIos) {
-    audio = new Audio();
-    audio.src = opt.emptyUrl;
-}
 
 function Player() {
     this.timeoutIds = {
@@ -594,6 +590,10 @@ Mp3Player.prototype._init = function(opt) {
     onended = opt.onended || emptyCb;
     onloadedmetadata = opt.onloadedmetadata || emptyCb;
     onerror = opt.onerror || emptyCb;
+    if (isIos) {
+        audio = new Audio();
+        audio.src = opt.emptyUrl;
+    }
     MP3Info.init(url, {
         onbeforedecode: onbeforedecode,
         onloadedmetadata: onloadedmetadata

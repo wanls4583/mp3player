@@ -21,7 +21,6 @@ window.mp3 = new Player(path, {
     },
     ontimeupdate: function(seconds) {
         if (seconds > totalTime || !validateDuration(totalTime)) {
-            onloadedmetadata(audio.duration);
             return;
         }
         var date = Util.formatCountDown(seconds);

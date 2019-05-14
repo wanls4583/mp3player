@@ -23,6 +23,10 @@ var player = {
     },
     //生成blob对象
     _generateBlob: function() {
+        if(window.MediaSource) {
+            console.log('该浏览器不支持MediaSource');
+            return;
+        }
         var self = this;
         this.mediaSource = new MediaSource();
         this.audio.src = URL.createObjectURL(this.mediaSource);

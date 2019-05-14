@@ -74,6 +74,32 @@ npm run build:prod
 |`onend`|播放结束回调|`function(){}`|`Function`|
 |`onbeforedecode`|数据拉取成功回调（可对数据进行二次处理，例如解密等工作）|`function(){}`|`Function`|
 
+## 方法
+
+### paly
+```javascript
+/**
+ * 播放音频
+ */
+function paly()
+```
+
+### seek
+```javascript
+/**
+ * 播放音频
+ * @param {percent} Number 进度百分比
+ */
+function seek(percent)
+```
+
+### pause
+```javascript
+/**
+ * 暂停播放
+ */
+function pause()
+```
 
 ## 贡献
 

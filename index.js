@@ -2,7 +2,7 @@ import AudioContextPlayer from './src/audiocontext/player';
 import MediaSourcetPlayer from './src/mediasource/player';
 
 function Player(url, opt){
-	if(opt.usemediasource){
+	if(opt.usemediasource && window.MediaSource){
 		return new MediaSourcetPlayer(url, opt);
 	}else{
 		return new AudioContextPlayer(url, opt);
