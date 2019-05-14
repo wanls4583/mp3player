@@ -23,7 +23,7 @@ var player = {
     },
     //生成blob对象
     _generateBlob: function() {
-        if(window.MediaSource) {
+        if(!window.MediaSource) {
             console.log('该浏览器不支持MediaSource');
             return;
         }
